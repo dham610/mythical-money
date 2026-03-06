@@ -26,7 +26,86 @@ const BET_TYPES = [
   { label: "Wild Card", multiplier: "1x", sports: "ANY" },
 ];
 
-const PLE_TIERS = [25000, 20000, 15000, 10000, 5000];
+// Dynamic PLE tiers based on match count
+// 4 matches: 20K,16K,12K,8K
+// 5 matches: 25K,20K,15K,10K,5K
+// 6 matches: 30K,25K,20K,15K,10K,5K  (but only 6 slots)
+// 7 matches: 35K,30K,25K,20K,15K,10K,5K
+// 8 matches: 40K,35K,30K,25K,20K,15K,10K,5K
+function getPleTiers(matchCount) {
+  const n = Math.max(4, Math.min(8, matchCount || 5));
+  const tiers = {
+    4: [20000, 16000, 12000, 8000],
+    5: [25000, 20000, 15000, 10000, 5000],
+    6: [30000, 25000, 20000, 15000, 10000, 5000],
+    7: [35000, 30000, 25000, 20000, 15000, 10000, 5000],
+    8: [40000, 35000, 30000, 25000, 20000, 15000, 10000, 5000],
+  };
+  return tiers[n];
+}
+
+const SPECIAL_MODES = [
+  {
+    icon: "👑",
+    name: "KING'S CLAIM",
+    color: "#D4A017",
+    border: "#3A2A0A",
+    body: "If one player is down by more than $30,000 MM at any point, the trailing player can invoke King's Claim. Once activated, all of that player's H2H bets pay out at 1.5x until the gap closes to under $15,000. One use per season. This is the official comeback mechanic — use it wisely.",
+    trigger: "Down by more than $30,000 MM",
+    payout: "1.5x on all H2H bets until gap < $15K",
+    limit: "One use per player per season",
+  },
+  {
+    icon: "🔥",
+    name: "DOUBLE DOWN WEEK",
+    color: "#E06C75",
+    border: "#3A1A1A",
+    body: "Once per season, either player can declare a Double Down Week. All H2H bet payouts are doubled (2x) for 7 consecutive days. Must be declared before the week begins — no retroactive activation. Both players are locked in for the full 7 days once it's called.",
+    trigger: "Declared by either player before the week starts",
+    payout: "2x on all H2H bets for 7 days",
+    limit: "One declaration per season total",
+  },
+  {
+    icon: "⛓️",
+    name: "CHAIN GAME",
+    color: "#6FA8DC",
+    border: "#1A2A3A",
+    body: "Pick 5 consecutive bets across any sport and declare them a Chain before the first one starts. Win all 5 and collect a 15x bonus on your original stake. Lose any single one and you only get normal payouts on what you did win — no bonus. Tracks momentum and rewards hot streaks.",
+    trigger: "Declared before the first of 5 consecutive bets",
+    payout: "15x bonus on stake if all 5 hit",
+    limit: "One Chain Game active per player at a time",
+  },
+  {
+    icon: "💀",
+    name: "NEMESIS BET",
+    color: "#E06C75",
+    border: "#3A1A1A",
+    body: "The nuclear option. A Nemesis Bet means the winner takes 20% of the loser's TOTAL current stack — not just the wager. Both players must verbally agree before it activates. Only one Nemesis Bet allowed per season. H2H only. This can swing a season in one result.",
+    trigger: "Mutual agreement by both players before the event",
+    payout: "Winner takes 20% of loser's entire stack",
+    limit: "One per season",
+  },
+  {
+    icon: "🎯",
+    name: "SNIPER BET",
+    color: "#6EC98A",
+    border: "#1A2A1A",
+    body: "Call something wildly, almost impossibly specific — a buzzer-beater winner, a title change in a specific match, a specific round KO, a heel turn. If it happens exactly as you called it, you collect 10x your wager. Can be placed as a Solo or H2H bet. One Sniper Bet per player per season.",
+    trigger: "Specific outcome called before the event",
+    payout: "10x the wager if it hits exactly",
+    limit: "One per player per season",
+  },
+  {
+    icon: "🃏",
+    name: "BLIND BET",
+    color: "#C792EA",
+    border: "#2A1A3A",
+    body: "Both players write down their pick secretly before revealing simultaneously. The drama of the reveal is half the fun. Winner collects 2x on the wager. Works for any sport, any event. Great for big moments where you both think you know what's about to happen.",
+    trigger: "Both picks locked in secretly before the event",
+    payout: "2x the wager",
+    limit: "No limit — use anytime",
+  },
+];
 
 const initialState = {
   p1Name: "Player 1",
@@ -34,6 +113,7 @@ const initialState = {
   p1Balance: STARTING_STACK,
   p2Balance: STARTING_STACK,
   bets: [],
+  pleEvents: {},
   season: new Date().getFullYear(),
 };
 
@@ -41,6 +121,11 @@ function recalcBalances(bets) {
   let p1 = STARTING_STACK, p2 = STARTING_STACK;
   [...bets].reverse().forEach((b) => {
     if (b.result === "Pending") return;
+    if (b.isAdjustment) {
+      if (b.adjustTarget === "p1") p1 += b.adjustAmount;
+      else p2 += b.adjustAmount;
+      return;
+    }
     if (b.mode === "solo") {
       if (b.result === "Win") {
         if (b.soloPlayer === "p1") p1 += b.amount * (b.payout || 1);
@@ -69,6 +154,7 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState("");
   const [showAddBet, setShowAddBet] = useState(false);
   const [showPLE, setShowPLE] = useState(false);
+  const [showAdjust, setShowAdjust] = useState(false);
   const [editingNames, setEditingNames] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [filterSport, setFilterSport] = useState("All");
@@ -87,18 +173,27 @@ export default function App() {
   const [form, setForm] = useState(blankForm);
   const [nameForm, setNameForm] = useState({ p1: "", p2: "" });
 
+  // PLE state - now per-player entry mode
   const blankPLE = {
-    eventName: "", date: new Date().toISOString().slice(0, 10),
-    matches: [{ match: "", p1Pick: "", p2Pick: "", p1Stake: null, p2Stake: null }],
+    eventName: "",
+    date: new Date().toISOString().slice(0, 10),
+    matchCount: 5,
+    // Each match: { match, p1Pick, p1Stake, p2Pick, p2Stake, p1Locked, p2Locked }
+    matches: Array(5).fill(null).map(() => ({ match: "", p1Pick: "", p1Stake: null, p2Pick: "", p2Stake: null, p1Locked: false, p2Locked: false })),
   };
   const [pleForm, setPleForm] = useState(blankPLE);
+  const [pleEntryPlayer, setPleEntryPlayer] = useState("p1"); // who is currently entering
 
-  // ── Firebase real-time sync ──────────────────────────────────────────────
+  // Adjustment state
+  const blankAdjust = { target: "p1", amount: "", direction: "add", reason: "" };
+  const [adjustForm, setAdjustForm] = useState(blankAdjust);
+
+  // ── Firebase ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const dbRef = ref(db, DB_KEY);
     const unsub = onValue(dbRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) setState(data);
+      if (data) setState({ ...initialState, ...data });
       setLoading(false);
     });
     return () => unsub();
@@ -109,9 +204,7 @@ export default function App() {
     try {
       await set(ref(db, DB_KEY), newState);
       setSaveStatus("saved");
-    } catch (e) {
-      setSaveStatus("error");
-    }
+    } catch (e) { setSaveStatus("error"); }
     setTimeout(() => setSaveStatus(""), 2500);
   };
 
@@ -147,14 +240,60 @@ export default function App() {
       amount: amt, payout: pOut,
       result: isSolo ? form.soloResult : form.result,
       winner: isSolo ? null : form.winner,
-      notes: form.notes, p1BalAfter: p1, p2BalAfter: p2, pleEvent: null,
+      notes: form.notes, p1BalAfter: p1, p2BalAfter: p2,
     };
     updateState((prev) => ({ ...prev, bets: [bet, ...(prev.bets || [])], p1Balance: p1, p2Balance: p2 }));
     setForm(blankForm);
     setShowAddBet(false);
   };
 
-  // ── Add PLE card ─────────────────────────────────────────────────────────
+  // ── Balance adjustment ───────────────────────────────────────────────────
+  const applyAdjustment = () => {
+    const amt = parseInt(String(adjustForm.amount).replace(/,/g, ""));
+    if (isNaN(amt) || amt <= 0) return;
+    const signed = adjustForm.direction === "add" ? amt : -amt;
+    let p1 = state.p1Balance, p2 = state.p2Balance;
+    if (adjustForm.target === "p1") p1 += signed;
+    else p2 += signed;
+
+    const record = {
+      id: Date.now(),
+      date: new Date().toISOString().slice(0, 10),
+      isAdjustment: true,
+      adjustTarget: adjustForm.target,
+      adjustAmount: signed,
+      description: `Adjustment: ${adjustForm.direction === "add" ? "+" : "-"}${fmt(amt)} to ${adjustForm.target === "p1" ? state.p1Name : state.p2Name}${adjustForm.reason ? ` — ${adjustForm.reason}` : ""}`,
+      sport: "—", betType: "Adjustment", mode: "adjust",
+      result: "Applied", winner: "none",
+      amount: 0, p1BalAfter: p1, p2BalAfter: p2,
+    };
+    updateState((prev) => ({ ...prev, bets: [record, ...(prev.bets || [])], p1Balance: p1, p2Balance: p2 }));
+    setAdjustForm(blankAdjust);
+    setShowAdjust(false);
+  };
+
+  // ── PLE: update match count and resize matches array ────────────────────
+  const updatePleMatchCount = (n) => {
+    const count = parseInt(n);
+    const current = pleForm.matches;
+    let updated;
+    if (count > current.length) {
+      updated = [...current, ...Array(count - current.length).fill(null).map(() => ({ match: "", p1Pick: "", p1Stake: null, p2Pick: "", p2Stake: null, p1Locked: false, p2Locked: false }))];
+    } else {
+      updated = current.slice(0, count);
+    }
+    setPleForm({ ...pleForm, matchCount: count, matches: updated });
+  };
+
+  // ── PLE: lock in a player's picks ───────────────────────────────────────
+  const lockPlayerPicks = (player) => {
+    const updated = pleForm.matches.map((m) => ({ ...m, [`${player}Locked`]: true }));
+    setPleForm({ ...pleForm, matches: updated });
+    // Switch to other player's entry view
+    setPleEntryPlayer(player === "p1" ? "p2" : "p1");
+  };
+
+  // ── PLE: submit the full card ────────────────────────────────────────────
   const addPLECard = () => {
     if (!pleForm.eventName) return;
     const valid = pleForm.matches.filter((m) => m.match.trim());
@@ -171,6 +310,7 @@ export default function App() {
     }));
     updateState((prev) => ({ ...prev, bets: [...newBets, ...(prev.bets || [])], p1Balance: p1, p2Balance: p2 }));
     setPleForm(blankPLE);
+    setPleEntryPlayer("p1");
     setShowPLE(false);
   };
 
@@ -221,26 +361,28 @@ export default function App() {
   // ── Derived ──────────────────────────────────────────────────────────────
   const bets = state.bets || [];
   const filteredBets = bets.filter((b) => {
+    if (b.isAdjustment) return filterMode === "All" || filterMode === "Adjustments";
     if (filterSport !== "All" && b.sport !== filterSport) return false;
     if (filterResult === "Pending" && b.result !== "Pending") return false;
     if (filterResult === "Settled" && b.result === "Pending") return false;
     if (filterMode === "H2H" && b.mode !== "h2h") return false;
     if (filterMode === "Solo" && b.mode !== "solo") return false;
+    if (filterMode === "Adjustments" && !b.isAdjustment) return false;
     return true;
   });
 
   const h2hSettled = bets.filter((b) => b.mode === "h2h" && b.result !== "Pending" && b.result !== "Push");
   const stats = {
-    total: bets.length,
+    total: bets.filter(b => !b.isAdjustment).length,
     pending: bets.filter((b) => b.result === "Pending").length,
-    settled: bets.filter((b) => b.result !== "Pending").length,
+    settled: bets.filter((b) => b.result !== "Pending" && !b.isAdjustment).length,
     p1H2hW: bets.filter((b) => b.winner === "p1").length,
     p2H2hW: bets.filter((b) => b.winner === "p2").length,
     p1SW: bets.filter((b) => b.mode === "solo" && b.soloPlayer === "p1" && b.result === "Win").length,
     p2SW: bets.filter((b) => b.mode === "solo" && b.soloPlayer === "p2" && b.result === "Win").length,
     p1SL: bets.filter((b) => b.mode === "solo" && b.soloPlayer === "p1" && b.result === "Loss").length,
     p2SL: bets.filter((b) => b.mode === "solo" && b.soloPlayer === "p2" && b.result === "Loss").length,
-    totalWagered: bets.reduce((s, b) => s + (b.amount || 0), 0),
+    totalWagered: bets.filter(b => !b.isAdjustment).reduce((s, b) => s + (b.amount || 0), 0),
   };
 
   const p1Lead = state.p1Balance > state.p2Balance;
@@ -252,11 +394,16 @@ export default function App() {
     if (r === "Push") return { bg: "#1A1A1A", color: "#666" };
     if (r === "Win") return { bg: "#0A2A1A", color: "#5AAF7A" };
     if (r === "Loss") return { bg: "#2A0A0A", color: "#E06C75" };
+    if (r === "Applied") return { bg: "#1A1A2A", color: "#6FA8DC" };
     return { bg: "#0A2A1A", color: "#5AAF7A" };
   };
 
+  const pleTiers = getPleTiers(pleForm.matchCount);
   const p1UsedStakes = pleForm.matches.map((m) => m.p1Stake).filter(Boolean);
   const p2UsedStakes = pleForm.matches.map((m) => m.p2Stake).filter(Boolean);
+  const p1AllLocked = pleForm.matches.every(m => m.p1Locked);
+  const p2AllLocked = pleForm.matches.every(m => m.p2Locked);
+  const bothLocked = p1AllLocked && p2AllLocked;
 
   if (loading) return (
     <div style={{ background: "#080808", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -277,7 +424,7 @@ export default function App() {
         .bg:hover { opacity: .9; transform: translateY(-1px); }
         .gh { background: transparent; border: 1px solid #2A2A2A; color: #888; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: border-color .2s, color .2s; }
         .gh:hover { border-color: #D4A017; color: #D4A017; }
-        .tb { background: transparent; border: none; cursor: pointer; font-family: 'Bebas Neue', cursive; letter-spacing: 2px; padding: 10px 14px; font-size: 14px; transition: all .2s; }
+        .tb { background: transparent; border: none; cursor: pointer; font-family: 'Bebas Neue', cursive; letter-spacing: 2px; padding: 10px 12px; font-size: 13px; transition: all .2s; }
         .fi { background: #111; border: 1px solid #2A2A2A; color: #E8E4DC; padding: 8px 12px; border-radius: 2px; width: 100%; font-size: 14px; outline: none; transition: border-color .2s; }
         .fi:focus { border-color: #D4A017; }
         .br:hover td { background: #0F0F0F; }
@@ -296,6 +443,7 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {saveStatus && <span style={{ fontSize: 10, color: saveStatus === "saved" ? "#5AAF7A" : saveStatus === "error" ? "#E06C75" : "#D4A017", letterSpacing: 1 }}>{saveStatus === "saving" ? "SAVING..." : saveStatus === "saved" ? "✓ SYNCED" : "⚠ ERROR"}</span>}
               <button className="gh" style={{ padding: "5px 11px", fontSize: 12, borderRadius: 2 }} onClick={() => { setNameForm({ p1: state.p1Name, p2: state.p2Name }); setEditingNames(true); }}>✏ Names</button>
+              <button className="gh" style={{ padding: "5px 11px", fontSize: 12, borderRadius: 2, borderColor: "#1A2A3A", color: "#6FA8DC" }} onClick={() => setShowAdjust(true)}>⚖ Adjust</button>
               <button className="gh" style={{ padding: "5px 11px", fontSize: 12, borderRadius: 2, borderColor: "#4A1A1A", color: "#C0392B" }} onClick={() => setShowResetConfirm(true)}>↺ Reset</button>
             </div>
           </div>
@@ -321,7 +469,7 @@ export default function App() {
 
           {/* TABS */}
           <div style={{ display: "flex", borderTop: "1px solid #1A1A1A", overflowX: "auto" }}>
-            {[["ledger", "📒 LEDGER"], ["stats", "📊 STATS"], ["rules", "📋 RULES"]].map(([t, l]) => (
+            {[["ledger", "📒 LEDGER"], ["stats", "📊 STATS"], ["modes", "⚡ SPECIAL MODES"], ["rules", "📋 RULES"]].map(([t, l]) => (
               <button key={t} className="tb" onClick={() => setTab(t)} style={{ color: tab === t ? "#D4A017" : "#444", borderBottom: tab === t ? "2px solid #D4A017" : "2px solid transparent", whiteSpace: "nowrap" }}>{l}</button>
             ))}
           </div>
@@ -340,9 +488,10 @@ export default function App() {
                   {SPORTS.map((s) => <option key={s}>{s}</option>)}
                 </select>
                 <select className="fi" style={{ width: "auto", fontSize: 12 }} value={filterMode} onChange={(e) => setFilterMode(e.target.value)}>
-                  <option value="All">All Modes</option>
+                  <option value="All">All Types</option>
                   <option value="H2H">Head-to-Head</option>
                   <option value="Solo">Solo</option>
+                  <option value="Adjustments">Adjustments</option>
                 </select>
                 <select className="fi" style={{ width: "auto", fontSize: 12 }} value={filterResult} onChange={(e) => setFilterResult(e.target.value)}>
                   <option value="All">All Results</option>
@@ -351,7 +500,7 @@ export default function App() {
                 </select>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="gh" style={{ padding: "8px 14px", fontSize: 13, borderRadius: 2, borderColor: "#3A1A1A", color: "#F08080", fontFamily: "'Bebas Neue',cursive", letterSpacing: 2 }} onClick={() => setShowPLE(true)}>🤼 WWE PLE</button>
+                <button className="gh" style={{ padding: "8px 14px", fontSize: 13, borderRadius: 2, borderColor: "#3A1A1A", color: "#F08080", fontFamily: "'Bebas Neue',cursive", letterSpacing: 2 }} onClick={() => { setPleForm(blankPLE); setPleEntryPlayer("p1"); setShowPLE(true); }}>🤼 WWE PLE</button>
                 <button className="bg" style={{ padding: "8px 18px", fontSize: 15, borderRadius: 2 }} onClick={() => setShowAddBet(true)}>+ LOG BET</button>
               </div>
             </div>
@@ -375,7 +524,7 @@ export default function App() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid #1A1A1A" }}>
-                      {["DATE", "SPORT", "MODE", "BET / DESCRIPTION", "PICKS", "WAGER", "RESULT", state.p1Name.slice(0, 7).toUpperCase() + " BAL", state.p2Name.slice(0, 7).toUpperCase() + " BAL", ""].map((h, i) => (
+                      {["DATE", "SPORT", "TYPE", "DESCRIPTION", "PICKS", "WAGER", "RESULT", state.p1Name.slice(0, 7).toUpperCase() + " BAL", state.p2Name.slice(0, 7).toUpperCase() + " BAL", ""].map((h, i) => (
                         <th key={i} style={{ padding: "7px 9px", textAlign: "left", fontFamily: "'Bebas Neue',cursive", fontSize: 10, letterSpacing: 2, color: "#3A3A3A", whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
@@ -384,40 +533,46 @@ export default function App() {
                     {filteredBets.map((bet) => {
                       const isPLE = bet.betType === "PLE Card";
                       const isSolo = bet.mode === "solo";
+                      const isAdj = bet.isAdjustment;
                       const rC = rc(bet.result);
                       return (
                         <tr key={bet.id} className="br" style={{ borderBottom: "1px solid #0F0F0F" }}>
                           <td style={{ padding: "9px 9px", color: "#3A3A3A", whiteSpace: "nowrap" }}>{bet.date}</td>
                           <td style={{ padding: "9px 9px" }}>
-                            <span style={{ background: sportColors[bet.sport] || "#333", color: "#fff", fontSize: 9, padding: "2px 6px", borderRadius: 2, letterSpacing: 1, fontFamily: "'Bebas Neue',cursive" }}>{bet.sport}</span>
+                            {isAdj ? <span style={{ color: "#444", fontSize: 11 }}>—</span> :
+                              <span style={{ background: sportColors[bet.sport] || "#333", color: "#fff", fontSize: 9, padding: "2px 6px", borderRadius: 2, letterSpacing: 1, fontFamily: "'Bebas Neue',cursive" }}>{bet.sport}</span>}
                           </td>
                           <td style={{ padding: "9px 9px" }}>
-                            {isPLE ? <span className="pill" style={{ background: "#3A1A1A", color: "#F08080" }}>PLE</span>
-                              : isSolo ? <span className="pill" style={{ background: "#1A2A1A", color: "#6EC98A" }}>SOLO·{(bet.soloPlayer === "p1" ? state.p1Name : state.p2Name).slice(0, 7)}</span>
-                                : <span className="pill" style={{ background: "#1A2A3A", color: "#6FA8DC" }}>H2H</span>}
+                            {isAdj ? <span className="pill" style={{ background: "#1A1A2A", color: "#6FA8DC" }}>ADJ</span>
+                              : isPLE ? <span className="pill" style={{ background: "#3A1A1A", color: "#F08080" }}>PLE</span>
+                                : isSolo ? <span className="pill" style={{ background: "#1A2A1A", color: "#6EC98A" }}>SOLO</span>
+                                  : <span className="pill" style={{ background: "#1A2A3A", color: "#6FA8DC" }}>H2H</span>}
                           </td>
-                          <td style={{ padding: "9px 9px", maxWidth: 190 }}>
+                          <td style={{ padding: "9px 9px", maxWidth: 200 }}>
                             <div style={{ color: "#E8E4DC", fontWeight: 500, lineHeight: 1.4 }}>{bet.description}</div>
-                            <div style={{ color: "#3A3A3A", fontSize: 10, marginTop: 2 }}>{bet.betType}{isSolo && bet.payout !== 1 ? ` · ${bet.payout}x` : ""}</div>
+                            {!isAdj && <div style={{ color: "#3A3A3A", fontSize: 10, marginTop: 2 }}>{bet.betType}{isSolo && bet.payout !== 1 ? ` · ${bet.payout}x` : ""}</div>}
                             {bet.notes && <div style={{ color: "#2A2A2A", fontSize: 10, fontStyle: "italic", marginTop: 1 }}>{bet.notes}</div>}
                           </td>
                           <td style={{ padding: "9px 9px", minWidth: 110 }}>
-                            {isPLE ? (
-                              <div style={{ fontSize: 10 }}>
-                                <div style={{ color: "#6FA8DC" }}>{state.p1Name.slice(0, 7)}: {bet.p1Pick || "—"} <span style={{ color: "#D4A017" }}>({fmt(bet.p1Stake || 0)})</span></div>
-                                <div style={{ color: "#F08080", marginTop: 2 }}>{state.p2Name.slice(0, 7)}: {bet.p2Pick || "—"} <span style={{ color: "#D4A017" }}>({fmt(bet.p2Stake || 0)})</span></div>
-                              </div>
-                            ) : isSolo ? (
-                              <div style={{ fontSize: 10, color: "#888" }}>{(bet.soloPlayer === "p1" ? state.p1Name : state.p2Name).slice(0, 7)}: {bet.p1Pick || "—"}</div>
-                            ) : (
-                              <div style={{ fontSize: 10 }}>
-                                <div style={{ color: "#6FA8DC" }}>{state.p1Name.slice(0, 7)}: {bet.p1Pick || "—"}</div>
-                                <div style={{ color: "#F08080", marginTop: 2 }}>{state.p2Name.slice(0, 7)}: {bet.p2Pick || "—"}</div>
-                              </div>
-                            )}
+                            {isAdj ? <span style={{ color: "#444", fontSize: 11 }}>—</span>
+                              : isPLE ? (
+                                <div style={{ fontSize: 10 }}>
+                                  <div style={{ color: "#6FA8DC" }}>{state.p1Name.slice(0, 7)}: {bet.p1Pick || "—"} <span style={{ color: "#D4A017" }}>({fmt(bet.p1Stake || 0)})</span></div>
+                                  <div style={{ color: "#F08080", marginTop: 2 }}>{state.p2Name.slice(0, 7)}: {bet.p2Pick || "—"} <span style={{ color: "#D4A017" }}>({fmt(bet.p2Stake || 0)})</span></div>
+                                </div>
+                              ) : isSolo ? (
+                                <div style={{ fontSize: 10, color: "#888" }}>{(bet.soloPlayer === "p1" ? state.p1Name : state.p2Name).slice(0, 7)}: {bet.p1Pick || "—"}</div>
+                              ) : (
+                                <div style={{ fontSize: 10 }}>
+                                  <div style={{ color: "#6FA8DC" }}>{state.p1Name.slice(0, 7)}: {bet.p1Pick || "—"}</div>
+                                  <div style={{ color: "#F08080", marginTop: 2 }}>{state.p2Name.slice(0, 7)}: {bet.p2Pick || "—"}</div>
+                                </div>
+                              )}
                           </td>
-                          <td style={{ padding: "9px 9px", fontFamily: "'Bebas Neue',cursive", fontSize: 16, color: "#D4A017", whiteSpace: "nowrap" }}>
-                            {isPLE ? <span style={{ fontSize: 10, color: "#3A3A3A" }}>see picks</span> : fmt(bet.amount)}
+                          <td style={{ padding: "9px 9px", fontFamily: "'Bebas Neue',cursive", fontSize: 16, color: isAdj ? "#6FA8DC" : "#D4A017", whiteSpace: "nowrap" }}>
+                            {isAdj ? (bet.adjustAmount > 0 ? "+" : "") + fmt(bet.adjustAmount)
+                              : isPLE ? <span style={{ fontSize: 10, color: "#3A3A3A" }}>see picks</span>
+                                : fmt(bet.amount)}
                           </td>
                           <td style={{ padding: "9px 9px", minWidth: 130 }}>
                             {bet.result === "Pending" ? (
@@ -443,10 +598,10 @@ export default function App() {
                               <span style={{ background: rC.bg, color: rC.color, fontSize: 9, padding: "3px 8px", borderRadius: 2, letterSpacing: 1 }}>{bet.result.toUpperCase()}</span>
                             )}
                           </td>
-                          <td style={{ padding: "9px 9px", fontFamily: "'Bebas Neue',cursive", fontSize: 14, color: bet.winner === "p1" ? "#5AAF7A" : bet.winner === "p2" ? "#E06C75" : "#888", whiteSpace: "nowrap" }}>
+                          <td style={{ padding: "9px 9px", fontFamily: "'Bebas Neue',cursive", fontSize: 14, color: isAdj && bet.adjustTarget === "p1" ? "#6FA8DC" : bet.winner === "p1" ? "#5AAF7A" : bet.winner === "p2" ? "#E06C75" : "#888", whiteSpace: "nowrap" }}>
                             {bet.p1BalAfter != null ? fmt(bet.p1BalAfter) : "—"}
                           </td>
-                          <td style={{ padding: "9px 9px", fontFamily: "'Bebas Neue',cursive", fontSize: 14, color: bet.winner === "p2" ? "#5AAF7A" : bet.winner === "p1" ? "#E06C75" : "#888", whiteSpace: "nowrap" }}>
+                          <td style={{ padding: "9px 9px", fontFamily: "'Bebas Neue',cursive", fontSize: 14, color: isAdj && bet.adjustTarget === "p2" ? "#6FA8DC" : bet.winner === "p2" ? "#5AAF7A" : bet.winner === "p1" ? "#E06C75" : "#888", whiteSpace: "nowrap" }}>
                             {bet.p2BalAfter != null ? fmt(bet.p2BalAfter) : "—"}
                           </td>
                           <td style={{ padding: "9px 7px" }}>
@@ -494,10 +649,10 @@ export default function App() {
                 ); })}
               </div>
             </div>
-            {bets.filter(b => b.amount > 0).length > 0 && (
+            {bets.filter(b => b.amount > 0 && !b.isAdjustment).length > 0 && (
               <div style={{ gridColumn: "1/-1", background: "#0E0E0E", border: "1px solid #1A1A1A", padding: "16px", borderRadius: 3 }}>
                 <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 16, color: "#D4A017", letterSpacing: 2, marginBottom: 12 }}>BIGGEST BETS</div>
-                {[...bets].filter(b => b.amount > 0).sort((a, b) => b.amount - a.amount).slice(0, 5).map((b) => (
+                {[...bets].filter(b => b.amount > 0 && !b.isAdjustment).sort((a, b) => b.amount - a.amount).slice(0, 5).map((b) => (
                   <div key={b.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid #111" }}>
                     <div>
                       <div style={{ fontSize: 13, color: "#E8E4DC" }}>{b.description}</div>
@@ -508,6 +663,30 @@ export default function App() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ═══ SPECIAL MODES ═══ */}
+        {tab === "modes" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 11, color: "#444", letterSpacing: 3, marginBottom: 4 }}>SPECIAL MODES ARE OPTIONAL POWER-UPS THAT CAN BE INVOKED DURING THE SEASON. THEY MUST BE AGREED UPON BEFORE ACTIVATION.</div>
+            {SPECIAL_MODES.map((m) => (
+              <div key={m.name} style={{ background: "#0E0E0E", border: `1px solid ${m.border}`, borderLeft: `3px solid ${m.color}`, borderRadius: 3, padding: "20px 24px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                  <div style={{ fontSize: 28 }}>{m.icon}</div>
+                  <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 24, color: m.color, letterSpacing: 3 }}>{m.name}</div>
+                </div>
+                <div style={{ fontSize: 13.5, color: "#888", lineHeight: 1.8, marginBottom: 16 }}>{m.body}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                  {[["TRIGGER", m.trigger], ["PAYOUT", m.payout], ["LIMIT", m.limit]].map(([label, val]) => (
+                    <div key={label} style={{ background: "#111", border: "1px solid #1A1A1A", padding: "10px 12px", borderRadius: 2 }}>
+                      <div style={{ fontSize: 9, color: "#444", letterSpacing: 2, marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontSize: 12, color: m.color, lineHeight: 1.4 }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -534,25 +713,35 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+
+            {/* PLE stake scale */}
             <div style={{ background: "#110A0A", border: "1px solid #3A1A1A", borderLeft: "3px solid #9b1c1c", padding: "14px 18px", borderRadius: 2 }}>
-              <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 17, letterSpacing: 2, color: "#F08080", marginBottom: 6 }}>🤼 WWE PLE CARD RULE</div>
-              <div style={{ fontSize: 13, color: "#777", lineHeight: 1.7 }}>For any WWE Premium Live Event, each player assigns one stake tier to each match on the card. The five tiers are <span style={{ color: "#F5C842" }}>$25,000 · $20,000 · $15,000 · $10,000 · $5,000</span>. Each tier can only be used once per player per event. Pick your match, assign your stake, pick your winner. Winner of each match collects the opponent's stake for that match. Max exposure per player per PLE: <span style={{ color: "#F5C842" }}>$75,000</span>.</div>
+              <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 17, letterSpacing: 2, color: "#F08080", marginBottom: 10 }}>🤼 WWE PLE CARD RULE + STAKE SCALE</div>
+              <div style={{ fontSize: 13, color: "#777", lineHeight: 1.7, marginBottom: 12 }}>Each player assigns one unique stake tier to each match on the card. Picks are entered separately so neither player sees the other's picks until both are locked in. Winner of each match collects the opponent's stake for that match.</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+                {[4, 5, 6, 7, 8].map((n) => (
+                  <div key={n} style={{ background: "#111", border: "1px solid #1A1A1A", padding: "10px 8px", borderRadius: 2, textAlign: "center" }}>
+                    <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 13, color: "#F08080", marginBottom: 6 }}>{n} MATCHES</div>
+                    {getPleTiers(n).map((t) => <div key={t} style={{ fontSize: 11, color: "#D4A017", lineHeight: 1.6 }}>{fmtShort(t)}</div>)}
+                    <div style={{ fontSize: 10, color: "#444", marginTop: 6 }}>Max: {fmtShort(getPleTiers(n).reduce((a, b) => a + b, 0))}</div>
+                  </div>
+                ))}
+              </div>
             </div>
+
             <div style={{ background: "#0A0A10", border: "1px solid #1A1A2A", borderLeft: "3px solid #6FA8DC", padding: "14px 18px", borderRadius: 2 }}>
               <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 17, letterSpacing: 2, color: "#6FA8DC", marginBottom: 6 }}>⚔️ BET MODES: H2H vs SOLO</div>
               <div style={{ fontSize: 13, color: "#777", lineHeight: 1.7 }}><span style={{ color: "#6FA8DC" }}>Head-to-Head:</span> Both players bet against each other. Winner collects from the loser's stack.<br /><br /><span style={{ color: "#6EC98A" }}>Solo:</span> Only the betting player's stack is affected. Your friend's balance is untouched.</div>
             </div>
+
             {[
               { num: "01", title: "STARTING STACK", body: "Both players begin at $100,000 Mythical Money. No real cash — pride and bragging rights only." },
               { num: "02", title: "SEASON RESET", body: "Season ends the night of the NBA Finals clinching game. Whoever has more MM wins. Stacks reset to $100,000." },
               { num: "03", title: "BET LIMITS", body: "Minimum bet: $1,000 MM. Max single H2H bet: 30% of your current stack. Solo bets have no cap." },
-              { num: "04", title: "BAILOUT RULE", body: "Drop below $10,000? One-time bailout to $15,000 — but forfeit your next H2H winning payout to your opponent." },
-              { num: "05", title: "GENTLEMAN'S HONOR", body: "All H2H bets agreed before the event starts. No retroactive bets. No 'I was joking.' Your word is law." },
-              { num: "06", title: "PUSH / DEAD HEAT", body: "Tie or no-contest? Original wager returned. Nobody wins, nobody loses." },
-              { num: "07", title: "NEMESIS BET", body: "One per season. Winner takes 20% of loser's TOTAL current stack. H2H only. Both must agree." },
-              { num: "08", title: "SNIPER BET", body: "Call something wildly specific. Hits exactly: 10x payout. One Sniper Bet per player per season." },
-              { num: "09", title: "KING'S CLAIM", body: "Down by more than $30,000? All your H2H bets pay 1.5x until gap closes under $15,000. One use per season." },
-              { num: "10", title: "DOUBLE DOWN WEEK", body: "Once per season, declare Double Down Week. All H2H payouts 2x for 7 days. Declare before the week begins." },
+              { num: "04", title: "BALANCE ADJUSTMENTS", body: "Either player can apply a manual adjustment to either stack at any time using the ⚖ Adjust button. This does not count as a bet, win, or loss — it's purely a correction or carry-over entry. All adjustments are logged in the ledger with an ADJ tag." },
+              { num: "05", title: "BAILOUT RULE", body: "Drop below $10,000? One-time bailout to $15,000 — but forfeit your next H2H winning payout to your opponent." },
+              { num: "06", title: "GENTLEMAN'S HONOR", body: "All H2H bets agreed before the event starts. No retroactive bets. No 'I was joking.' Your word is law." },
+              { num: "07", title: "PUSH / DEAD HEAT", body: "Tie or no-contest? Original wager returned. Nobody wins, nobody loses." },
             ].map((r) => (
               <div key={r.num} style={{ display: "flex", gap: 16, background: "#0E0E0E", border: "1px solid #1A1A1A", borderLeft: "3px solid #D4A017", padding: "13px 16px", borderRadius: 2 }}>
                 <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 28, color: "#D4A017", opacity: .2, lineHeight: 1, minWidth: 34 }}>{r.num}</div>
@@ -605,7 +794,7 @@ export default function App() {
                   <div style={{ display: "flex", gap: 8 }}>
                     {[["p1", state.p1Name], ["p2", state.p2Name]].map(([v, n]) => (
                       <button key={v} onClick={() => setForm({ ...form, soloPlayer: v })}
-                        style={{ flex: 1, padding: "8px", border: `1px solid ${form.soloPlayer === v ? "#6EC98A" : "#2A2A2A"}`, background: form.soloPlayer === v ? "#1A2A1A" : "transparent", color: form.soloPlayer === v ? "#6EC98A" : "#444", fontFamily: "'Bebas Neue',cursive", fontSize: 13, letterSpacing: 1, cursor: "pointer", borderRadius: 2, transition: "all .2s" }}>
+                        style={{ flex: 1, padding: "8px", border: `1px solid ${form.soloPlayer === v ? "#6EC98A" : "#2A2A2A"}`, background: form.soloPlayer === v ? "#1A2A1A" : "transparent", color: form.soloPlayer === v ? "#6EC98A" : "#444", fontFamily: "'Bebas Neue',cursive", fontSize: 13, letterSpacing: 1, cursor: "pointer", borderRadius: 2 }}>
                         {n}
                       </button>
                     ))}
@@ -674,8 +863,12 @@ export default function App() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
           <div style={{ background: "#0D0D0D", border: "1px solid #3A1A1A", borderTop: "2px solid #9b1c1c", borderRadius: 4, width: "100%", maxWidth: 700, maxHeight: "92vh", overflowY: "auto", padding: 24 }}>
             <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 22, color: "#F08080", letterSpacing: 3, marginBottom: 4 }}>🤼 WWE PLE CARD BUILDER</div>
-            <div style={{ fontSize: 11, color: "#444", marginBottom: 16, lineHeight: 1.6 }}>Assign one stake tier to each match. Tiers: <span style={{ color: "#F5C842" }}>$25K · $20K · $15K · $10K · $5K</span>. Each tier used once per player per event.</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: "#444", marginBottom: 16, lineHeight: 1.6 }}>
+              Each player enters their own picks separately — picks are hidden until both lock in. Stakes auto-scale by match count.
+            </div>
+
+            {/* Event setup */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10, marginBottom: 16 }}>
               <div>
                 <label style={{ fontSize: 9, color: "#444", letterSpacing: 2, display: "block", marginBottom: 3 }}>EVENT NAME *</label>
                 <input className="fi" placeholder="e.g. WrestleMania 41" value={pleForm.eventName} onChange={(e) => setPleForm({ ...pleForm, eventName: e.target.value })} />
@@ -684,61 +877,164 @@ export default function App() {
                 <label style={{ fontSize: 9, color: "#444", letterSpacing: 2, display: "block", marginBottom: 3 }}>DATE</label>
                 <input type="date" className="fi" value={pleForm.date} onChange={(e) => setPleForm({ ...pleForm, date: e.target.value })} />
               </div>
+              <div>
+                <label style={{ fontSize: 9, color: "#444", letterSpacing: 2, display: "block", marginBottom: 3 }}>MATCHES</label>
+                <select className="fi" style={{ width: 80 }} value={pleForm.matchCount} onChange={(e) => updatePleMatchCount(e.target.value)}>
+                  {[4, 5, 6, 7, 8].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-              {PLE_TIERS.map((t) => { const p1u = p1UsedStakes.includes(t), p2u = p2UsedStakes.includes(t); return (
-                <div key={t} style={{ background: "#111", border: "1px solid #1A1A1A", padding: "5px 10px", borderRadius: 2, textAlign: "center", minWidth: 70 }}>
-                  <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 15, color: "#D4A017" }}>{fmtShort(t)}</div>
-                  <div style={{ fontSize: 9, marginTop: 1 }}>
-                    {p1u ? <span style={{ color: "#6FA8DC" }}>{state.p1Name.slice(0, 5)}✓ </span> : null}
-                    {p2u ? <span style={{ color: "#F08080" }}>{state.p2Name.slice(0, 5)}✓</span> : null}
-                    {!p1u && !p2u ? <span style={{ color: "#2A2A2A" }}>free</span> : null}
+
+            {/* Stake tier legend */}
+            <div style={{ background: "#111", border: "1px solid #1A1A1A", padding: "10px 14px", borderRadius: 2, marginBottom: 16 }}>
+              <div style={{ fontSize: 9, color: "#444", letterSpacing: 2, marginBottom: 6 }}>STAKE TIERS FOR {pleForm.matchCount} MATCHES</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {pleTiers.map((t, i) => (
+                  <div key={t} style={{ background: "#0A0A0A", border: "1px solid #2A2A2A", padding: "4px 10px", borderRadius: 2, textAlign: "center" }}>
+                    <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 14, color: "#D4A017" }}>{fmtShort(t)}</div>
+                    <div style={{ fontSize: 9, color: "#333" }}>Match {i + 1}</div>
                   </div>
-                </div>
-              ); })}
+                ))}
+              </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {pleForm.matches.map((m, i) => (
-                <div key={i} style={{ background: "#111", border: "1px solid #1A1A1A", padding: "13px", borderRadius: 3 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <span style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 13, color: "#9b1c1c", letterSpacing: 2 }}>MATCH {i + 1}</span>
-                    {pleForm.matches.length > 1 && <button onClick={() => setPleForm({ ...pleForm, matches: pleForm.matches.filter((_, j) => j !== i) })} style={{ background: "transparent", border: "none", color: "#2A2A2A", cursor: "pointer", fontSize: 12 }} onMouseEnter={(e) => e.target.style.color = "#E06C75"} onMouseLeave={(e) => e.target.style.color = "#2A2A2A"}>✕</button>}
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <div style={{ gridColumn: "1/-1" }}>
-                      <label style={{ fontSize: 9, color: "#444", letterSpacing: 1, display: "block", marginBottom: 3 }}>MATCH / STIPULATION</label>
-                      <input className="fi" placeholder="e.g. Cody Rhodes vs Roman Reigns" value={m.match} onChange={(e) => { const ms = [...pleForm.matches]; ms[i] = { ...ms[i], match: e.target.value }; setPleForm({ ...pleForm, matches: ms }); }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 9, color: "#6FA8DC", letterSpacing: 1, display: "block", marginBottom: 3 }}>{state.p1Name.toUpperCase()} PICK</label>
-                      <input className="fi" placeholder="Who wins?" value={m.p1Pick} onChange={(e) => { const ms = [...pleForm.matches]; ms[i] = { ...ms[i], p1Pick: e.target.value }; setPleForm({ ...pleForm, matches: ms }); }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 9, color: "#F08080", letterSpacing: 1, display: "block", marginBottom: 3 }}>{state.p2Name.toUpperCase()} PICK</label>
-                      <input className="fi" placeholder="Who wins?" value={m.p2Pick} onChange={(e) => { const ms = [...pleForm.matches]; ms[i] = { ...ms[i], p2Pick: e.target.value }; setPleForm({ ...pleForm, matches: ms }); }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 9, color: "#6FA8DC", letterSpacing: 1, display: "block", marginBottom: 3 }}>{state.p1Name.toUpperCase()} STAKE</label>
-                      <select className="fi" value={m.p1Stake || ""} onChange={(e) => { const ms = [...pleForm.matches]; ms[i] = { ...ms[i], p1Stake: parseInt(e.target.value) || null }; setPleForm({ ...pleForm, matches: ms }); }}>
-                        <option value="">— select —</option>
-                        {PLE_TIERS.filter(t => !p1UsedStakes.includes(t) || m.p1Stake === t).map(t => <option key={t} value={t}>{fmt(t)}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 9, color: "#F08080", letterSpacing: 1, display: "block", marginBottom: 3 }}>{state.p2Name.toUpperCase()} STAKE</label>
-                      <select className="fi" value={m.p2Stake || ""} onChange={(e) => { const ms = [...pleForm.matches]; ms[i] = { ...ms[i], p2Stake: parseInt(e.target.value) || null }; setPleForm({ ...pleForm, matches: ms }); }}>
-                        <option value="">— select —</option>
-                        {PLE_TIERS.filter(t => !p2UsedStakes.includes(t) || m.p2Stake === t).map(t => <option key={t} value={t}>{fmt(t)}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ))}
+
+            {/* Per-player entry toggle */}
+            <div style={{ display: "flex", gap: 0, marginBottom: 16, background: "#111", borderRadius: 3, padding: 3 }}>
+              {[["p1", state.p1Name], ["p2", state.p2Name]].map(([pl, name]) => {
+                const locked = pleForm.matches.every(m => m[`${pl}Locked`]);
+                return (
+                  <button key={pl} onClick={() => setPleEntryPlayer(pl)}
+                    style={{ flex: 1, padding: "9px 6px", border: "none", borderRadius: 2, cursor: "pointer", fontFamily: "'Bebas Neue',cursive", fontSize: 14, letterSpacing: 2, transition: "all .2s",
+                      background: pleEntryPlayer === pl ? (pl === "p1" ? "#1A2A3A" : "#2A1A1A") : "transparent",
+                      color: pleEntryPlayer === pl ? (pl === "p1" ? "#6FA8DC" : "#F08080") : "#333",
+                      borderBottom: pleEntryPlayer === pl ? `2px solid ${pl === "p1" ? "#6FA8DC" : "#F08080"}` : "2px solid transparent" }}>
+                    {name} {locked ? "✓ LOCKED" : "— ENTERING"}
+                  </button>
+                );
+              })}
             </div>
-            {pleForm.matches.length < 10 && <button className="gh" style={{ width: "100%", padding: "9px", borderRadius: 2, marginTop: 10, fontSize: 13 }} onClick={() => setPleForm({ ...pleForm, matches: [...pleForm.matches, { match: "", p1Pick: "", p2Pick: "", p1Stake: null, p2Stake: null }] })}>+ ADD MATCH</button>}
+
+            {/* Privacy notice */}
+            <div style={{ background: "#0A0A0A", border: "1px solid #1A1A1A", padding: "8px 12px", borderRadius: 2, marginBottom: 14, fontSize: 11, color: "#444" }}>
+              {pleEntryPlayer === "p1" ? `${state.p1Name} is entering picks. ${state.p2Name}'s picks are hidden until locked.` : `${state.p2Name} is entering picks. ${state.p1Name}'s picks are hidden until locked.`}
+            </div>
+
+            {/* Match entries for current player */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {pleForm.matches.map((m, i) => {
+                const pl = pleEntryPlayer;
+                const otherPl = pl === "p1" ? "p2" : "p1";
+                const isLocked = m[`${pl}Locked`];
+                const tier = pleTiers[i];
+                return (
+                  <div key={i} style={{ background: "#111", border: `1px solid ${isLocked ? "#1A2A1A" : "#1A1A1A"}`, padding: "12px 14px", borderRadius: 3, opacity: isLocked ? 0.7 : 1 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 13, color: "#9b1c1c", letterSpacing: 2 }}>MATCH {i + 1}</span>
+                        <span style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 13, color: "#D4A017" }}>{fmtShort(tier)}</span>
+                        {isLocked && <span style={{ fontSize: 10, color: "#5AAF7A", background: "#0A2A1A", padding: "2px 6px", borderRadius: 2 }}>LOCKED</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 8 }}>
+                      <div>
+                        <label style={{ fontSize: 9, color: "#444", letterSpacing: 1, display: "block", marginBottom: 3 }}>MATCH / STIPULATION</label>
+                        <input className="fi" placeholder="e.g. Cody Rhodes vs Roman Reigns" value={m.match} disabled={isLocked}
+                          onChange={(e) => { const ms = [...pleForm.matches]; ms[i] = { ...ms[i], match: e.target.value }; setPleForm({ ...pleForm, matches: ms }); }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 9, color: pl === "p1" ? "#6FA8DC" : "#F08080", letterSpacing: 1, display: "block", marginBottom: 3 }}>YOUR PICK</label>
+                        <input className="fi" placeholder="Who wins?" value={m[`${pl}Pick`]} disabled={isLocked}
+                          onChange={(e) => { const ms = [...pleForm.matches]; ms[i] = { ...ms[i], [`${pl}Pick`]: e.target.value }; setPleForm({ ...pleForm, matches: ms }); }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Lock / Submit buttons */}
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button className="bg" style={{ flex: 1, padding: "11px", fontSize: 16, borderRadius: 2 }} onClick={addPLECard}>CREATE PLE CARD</button>
-              <button className="gh" style={{ padding: "11px 16px", borderRadius: 2 }} onClick={() => { setPleForm(blankPLE); setShowPLE(false); }}>CANCEL</button>
+              {!pleForm.matches.every(m => m[`${pleEntryPlayer}Locked`]) && (
+                <button style={{ flex: 1, padding: "11px", border: "none", borderRadius: 2, cursor: "pointer", fontFamily: "'Bebas Neue',cursive", fontSize: 16, letterSpacing: 2, background: pleEntryPlayer === "p1" ? "#1A2A3A" : "#2A1A1A", color: pleEntryPlayer === "p1" ? "#6FA8DC" : "#F08080" }}
+                  onClick={() => lockPlayerPicks(pleEntryPlayer)}>
+                  🔒 LOCK {(pleEntryPlayer === "p1" ? state.p1Name : state.p2Name).toUpperCase()}'S PICKS
+                </button>
+              )}
+              {bothLocked && (
+                <button className="bg" style={{ flex: 1, padding: "11px", fontSize: 16, borderRadius: 2 }} onClick={addPLECard}>
+                  ✓ SUBMIT PLE CARD
+                </button>
+              )}
+              <button className="gh" style={{ padding: "11px 16px", borderRadius: 2 }} onClick={() => { setPleForm(blankPLE); setPleEntryPlayer("p1"); setShowPLE(false); }}>CANCEL</button>
+            </div>
+            {!bothLocked && (
+              <div style={{ fontSize: 11, color: "#444", marginTop: 10, textAlign: "center" }}>
+                Both players must lock in before the card can be submitted.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ADJUSTMENT MODAL ═══ */}
+      {showAdjust && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
+          <div style={{ background: "#0D0D0D", border: "1px solid #1A1A2A", borderTop: "2px solid #6FA8DC", borderRadius: 4, width: "100%", maxWidth: 420, padding: 24 }}>
+            <div style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 22, color: "#6FA8DC", letterSpacing: 3, marginBottom: 4 }}>⚖ BALANCE ADJUSTMENT</div>
+            <div style={{ fontSize: 11, color: "#444", marginBottom: 18, lineHeight: 1.6 }}>Add or subtract from either player's stack. This does not count as a bet, win, or loss — it's a manual correction or carry-over entry. It will be logged in the ledger with an ADJ tag.</div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 9, color: "#444", letterSpacing: 2, display: "block", marginBottom: 5 }}>ADJUST WHICH PLAYER?</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[["p1", state.p1Name], ["p2", state.p2Name]].map(([v, n]) => (
+                    <button key={v} onClick={() => setAdjustForm({ ...adjustForm, target: v })}
+                      style={{ flex: 1, padding: "9px", border: `1px solid ${adjustForm.target === v ? "#6FA8DC" : "#2A2A2A"}`, background: adjustForm.target === v ? "#1A1A2A" : "transparent", color: adjustForm.target === v ? "#6FA8DC" : "#444", fontFamily: "'Bebas Neue',cursive", fontSize: 14, letterSpacing: 1, cursor: "pointer", borderRadius: 2 }}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 9, color: "#444", letterSpacing: 2, display: "block", marginBottom: 5 }}>ADD OR SUBTRACT?</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[["add", "+ ADD", "#5AAF7A"], ["subtract", "− SUBTRACT", "#E06C75"]].map(([v, l, col]) => (
+                    <button key={v} onClick={() => setAdjustForm({ ...adjustForm, direction: v })}
+                      style={{ flex: 1, padding: "9px", border: `1px solid ${adjustForm.direction === v ? col : "#2A2A2A"}`, background: adjustForm.direction === v ? "#0A0A0A" : "transparent", color: adjustForm.direction === v ? col : "#444", fontFamily: "'Bebas Neue',cursive", fontSize: 16, letterSpacing: 2, cursor: "pointer", borderRadius: 2 }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 9, color: "#444", letterSpacing: 2, display: "block", marginBottom: 3 }}>AMOUNT *</label>
+                <input className="fi" placeholder="e.g. 50000" value={adjustForm.amount} onChange={(e) => setAdjustForm({ ...adjustForm, amount: e.target.value })} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 9, color: "#444", letterSpacing: 2, display: "block", marginBottom: 3 }}>REASON (optional)</label>
+                <input className="fi" placeholder="e.g. Carry-over from previous season" value={adjustForm.reason} onChange={(e) => setAdjustForm({ ...adjustForm, reason: e.target.value })} />
+              </div>
+
+              {/* Preview */}
+              {adjustForm.amount && (
+                <div style={{ background: "#111", border: "1px solid #1A1A1A", padding: "10px 14px", borderRadius: 2, fontSize: 12, color: "#666" }}>
+                  <span style={{ color: adjustForm.direction === "add" ? "#5AAF7A" : "#E06C75" }}>
+                    {adjustForm.direction === "add" ? "+" : "-"}{fmt(parseInt(String(adjustForm.amount).replace(/,/g, "")) || 0)}
+                  </span>
+                  {" "}to {(adjustForm.target === "p1" ? state.p1Name : state.p2Name)}'s stack →{" "}
+                  <span style={{ color: "#D4A017", fontFamily: "'Bebas Neue',cursive", fontSize: 15 }}>
+                    {fmt((adjustForm.target === "p1" ? state.p1Balance : state.p2Balance) + (adjustForm.direction === "add" ? 1 : -1) * (parseInt(String(adjustForm.amount).replace(/,/g, "")) || 0))}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <button className="bg" style={{ flex: 1, padding: "11px", fontSize: 16, borderRadius: 2 }} onClick={applyAdjustment}>APPLY ADJUSTMENT</button>
+              <button className="gh" style={{ padding: "11px 16px", borderRadius: 2 }} onClick={() => { setAdjustForm(blankAdjust); setShowAdjust(false); }}>CANCEL</button>
             </div>
           </div>
         </div>
