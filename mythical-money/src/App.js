@@ -399,8 +399,6 @@ export default function App() {
   };
 
   const pleTiers = getPleTiers(pleForm.matchCount);
-  const p1UsedStakes = pleForm.matches.map((m) => m.p1Stake).filter(Boolean);
-  const p2UsedStakes = pleForm.matches.map((m) => m.p2Stake).filter(Boolean);
   const p1AllLocked = pleForm.matches.every(m => m.p1Locked);
   const p2AllLocked = pleForm.matches.every(m => m.p2Locked);
   const bothLocked = p1AllLocked && p2AllLocked;
@@ -923,7 +921,6 @@ export default function App() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {pleForm.matches.map((m, i) => {
                 const pl = pleEntryPlayer;
-                const otherPl = pl === "p1" ? "p2" : "p1";
                 const isLocked = m[`${pl}Locked`];
                 const tier = pleTiers[i];
                 return (
