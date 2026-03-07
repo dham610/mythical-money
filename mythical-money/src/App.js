@@ -1,3 +1,17 @@
+import { useState, useEffect, useCallback } from "react";
+import { db } from "./firebase";
+import { ref, onValue, set } from "firebase/database";
+
+const STARTING_STACK = 100000;
+const DB_KEY = "season";
+
+const fmt = (n) => "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 0 });
+const fmtShort = (n) => Math.abs(n) >= 1000 ? "$" + (n / 1000).toFixed(0) + "K" : fmt(n);
+const nowTimestamp = () => new Date().toISOString();
+const fmtTime = (iso) => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" }) + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }); };
+
+const SPORTS = ["NBA", "WWE", "MMA/Boxing", "NFL", "MLB", "WNBA", "Other"];
+
 const BET_TYPES = [
   { label: "Straight Win/Loss", multiplier: "1x", sports: "ALL" },
   { label: "Spread Bet", multiplier: "1.5x", sports: "NBA / NFL / MLB" },
@@ -41,7 +55,6 @@ const PLAYER_COLORS = [
   { label:"White", highlight:"#e5e7eb", font:"#080808" },
 ];
 
-// \u2500\u2500 THEMES \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 const THEMES = {
   obsidian: {
     name: "Obsidian", icon: "\u2b1b",
@@ -156,7 +169,7 @@ function recalcBalances(bets) {
 }
 
 // CSV export
-function exportCSV(bets, p1Name, p2Name) {
+function exportCSV(bets) {
   const headers = ["Date","Time","Sport","Type","Mode","Description","P1 Pick","P2 Pick","Wager","Payout","Result","P1 Balance After","P2 Balance After","Notes"];
   const rows = bets.map(b => [
     b.date || "", fmtTime(b.timestamp) || "",
@@ -216,7 +229,7 @@ function parseCSV(text) {
   }).filter(b => b.description);
 }
 
-// \u2500\u2500 PROFILE SELECTOR SCREEN \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// PROFILE SELECTOR SCREEN
 function ProfileSelector({ p1Name, p2Name, onSelect }) {
   const t = THEMES.obsidian;
   return (
@@ -255,7 +268,6 @@ export default function App() {
   const [showAdjust, setShowAdjust] = useState(false);
   const [showLogMode, setShowLogMode] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(null);
-  const [editingNames, setEditingNames] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [filterSport, setFilterSport] = useState("All");
   const [filterResult, setFilterResult] = useState("All");
@@ -264,17 +276,16 @@ export default function App() {
   const [sortDir, setSortDir] = useState("desc");
 
   // Rankings
-  const [editingRankings, setEditingRankings] = useState(null); // null | "mens" | "womens"
+  const [editingRankings, setEditingRankings] = useState(null);
   const [rankForm, setRankForm] = useState(blankRankings());
   const [showClaimBonus, setShowClaimBonus] = useState(false);
   const blankClaim = { player:"p1", division:"mens", rank:0, titleWon:"" };
   const [claimForm, setClaimForm] = useState(blankClaim);
 
   // Profile + theme (localStorage, per device)
-  const [activePlayer, setActivePlayer] = useState(null); // null = show selector
+  const [activePlayer, setActivePlayer] = useState(null);
   const [themeKey, setThemeKey] = useState("obsidian");
 
-  // On mount: restore profile + theme from localStorage
   useEffect(() => {
     const saved = localStorage.getItem("mm_player");
     const savedTheme = localStorage.getItem("mm_theme_" + saved);
@@ -311,7 +322,6 @@ export default function App() {
   const blankModeLog = { modeKey:"kings_claim", player:"p1", note:"" };
   const [modeLogForm, setModeLogForm] = useState(blankModeLog);
 
-  // \u2500\u2500 Firebase \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   useEffect(() => {
     const dbRef = ref(db, DB_KEY);
     const unsub = onValue(dbRef, (snapshot) => {
@@ -333,14 +343,12 @@ export default function App() {
     setState((prev) => { const next = typeof updater==="function" ? updater(prev) : updater; saveToFirebase(next); return next; });
   };
 
-  // \u2500\u2500 Sorting \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d==="asc"?"desc":"asc");
     else { setSortCol(col); setSortDir("desc"); }
   };
   const sortIndicator = (col) => sortCol===col ? (sortDir==="asc"?" \u2191":" \u2193") : " \u2195";
 
-  // \u2500\u2500 Add / Edit bet \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const openEditBet = (bet) => {
     setForm({
       date: bet.date, sport: bet.sport, betType: bet.betType,
@@ -396,7 +404,6 @@ export default function App() {
     setForm(blankForm); setShowAddBet(false);
   };
 
-  // \u2500\u2500 Adjustment \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const applyAdjustment = () => {
     const amt = parseInt(String(adjustForm.amount).replace(/,/g,""));
     if(isNaN(amt)||amt<=0) return;
@@ -414,7 +421,6 @@ export default function App() {
     setAdjustForm(blankAdjust); setShowAdjust(false);
   };
 
-  // \u2500\u2500 Special Mode log \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const logModeInvocation = () => {
     const entry = {
       id: Date.now(), key:modeLogForm.modeKey, player:modeLogForm.player,
@@ -429,7 +435,6 @@ export default function App() {
     updateState((prev) => ({...prev, modeLog:(prev.modeLog||[]).filter(m=>m.id!==id)}));
   };
 
-  // \u2500\u2500 PLE \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const updatePleMatchCount = (n) => {
     const count=parseInt(n); const current=pleForm.matches; let updated;
     if(count>current.length) updated=[...current,...Array(count-current.length).fill(null).map(()=>({match:"",p1Pick:"",p1Stake:null,p2Pick:"",p2Stake:null,p1Locked:false,p2Locked:false}))];
@@ -461,7 +466,6 @@ export default function App() {
     setPleForm(blankPLE); setPleEntryPlayer("p1"); setShowPLE(false);
   };
 
-  // \u2500\u2500 Settle / Delete \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const settleBet = (id, outcome) => {
     updateState((prev) => {
       const bet=(prev.bets||[]).find(b=>b.id===id);
@@ -494,7 +498,6 @@ export default function App() {
   const saveNames = () => { updateState((prev)=>({...prev,p1Name:nameForm.p1||prev.p1Name,p2Name:nameForm.p2||prev.p2Name})); setEditingNames(false); };
   const saveColor = (player, color) => { updateState((prev)=>({...prev,[`${player}Color`]:color})); setShowColorPicker(null); };
 
-  // \u2500\u2500 CSV Import \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const handleImport = (e) => {
     const file=e.target.files[0]; if(!file) return;
     const reader=new FileReader();
@@ -512,7 +515,6 @@ export default function App() {
     e.target.value="";
   };
 
-  // \u2500\u2500 Derived \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const bets = state.bets || [];
   const modeLog = state.modeLog || [];
   const p1Color = state.p1Color || { highlight:"#1d4ed8", font:"#ffffff" };
@@ -578,7 +580,6 @@ export default function App() {
 
   const thStyle=(col)=>({ padding:"7px 9px", textAlign:"left", fontFamily:"'Bebas Neue',cursive", fontSize:10, letterSpacing:2, color:sortCol===col?T.gold:T.textMuted, whiteSpace:"nowrap", cursor:"pointer", userSelect:"none", background:sortCol===col?T.surface2:"transparent" });
 
-  // Rankings helpers
   const getRankings = (player, division) => {
     const key = player + (division==="mens" ? "MensRankings" : "WomensRankings");
     return state[key] || blankRankings();
@@ -597,9 +598,9 @@ export default function App() {
     const bonus = RANK_BONUSES[rank];
     let p1 = state.p1Balance, p2 = state.p2Balance;
     if (player === "p1") p1 += bonus; else p2 += bonus;
-    const divLabel = division === "mens" ? "Men's" : "Women's";
+    const divLabel = division === "mens" ? "Men\u2019s" : "Women\u2019s";
     const entry = { id: Date.now(), timestamp: nowTimestamp(), date: new Date().toISOString().slice(0,10), player, division, rank, wrestler, bonus, titleWon };
-    const adjRecord = { id: Date.now()+1, timestamp: nowTimestamp(), date: new Date().toISOString().slice(0,10), isAdjustment:true, adjustTarget:player, adjustAmount:bonus, description:"🏆 Power Rankings Bonus — "+wrestler+" ("+divLabel+" Rank #"+(rank+1)+") won: "+titleWon, sport:"WWE", betType:"Adjustment", mode:"adjust", result:"Applied", winner:"none", amount:0, p1BalAfter:p1, p2BalAfter:p2 };
+    const adjRecord = { id: Date.now()+1, timestamp: nowTimestamp(), date: new Date().toISOString().slice(0,10), isAdjustment:true, adjustTarget:player, adjustAmount:bonus, description:"\uD83C\uDFC6 Power Rankings Bonus \u2014 "+wrestler+" ("+divLabel+" Rank #"+(rank+1)+") won: "+titleWon, sport:"WWE", betType:"Adjustment", mode:"adjust", result:"Applied", winner:"none", amount:0, p1BalAfter:p1, p2BalAfter:p2 };
     updateState((prev) => ({ ...prev, bets:[adjRecord,...(prev.bets||[])], rankingLog:[entry,...(prev.rankingLog||[])], p1Balance:p1, p2Balance:p2 }));
     setClaimForm(blankClaim);
     setShowClaimBonus(false);
@@ -608,7 +609,6 @@ export default function App() {
     updateState((prev) => ({ ...prev, rankingLog:(prev.rankingLog||[]).filter(r=>r.id!==id) }));
   };
 
-  // Show profile selector if no player chosen
   if (!activePlayer) {
     return <ProfileSelector p1Name={state.p1Name} p2Name={state.p2Name} onSelect={selectPlayer} />;
   }
@@ -644,12 +644,11 @@ export default function App() {
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 0 0",flexWrap:"wrap",gap:8}}>
             <div>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,background:`linear-gradient(135deg,${T.goldBright},${T.gold})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:3,lineHeight:1}}>MYTHICAL MONEY</div>
-              <div style={{fontSize:10,color:T.textMuted,letterSpacing:3,marginTop:2}}>SEASON {state.season} \u00b7 RESETS AFTER NBA FINALS</div>
+              <div style={{fontSize:10,color:T.textMuted,letterSpacing:3,marginTop:2}}>SEASON {state.season} &middot; RESETS AFTER NBA FINALS</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
               {saveStatus&&<span style={{fontSize:10,color:saveStatus==="saved"?"#5AAF7A":saveStatus==="error"?"#E06C75":T.gold,letterSpacing:1}}>{saveStatus==="saving"?"SAVING...":saveStatus==="saved"?"\u2713 SYNCED":"\u26a0 ERROR"}</span>}
               <button className="gh" style={{padding:"5px 10px",fontSize:11,borderRadius:2,borderColor:"#4A1A1A",color:"#C0392B"}} onClick={()=>setShowResetConfirm(true)}>\u21ba Reset</button>
-              {/* Who am I indicator */}
               <div style={{padding:"5px 10px",fontSize:11,borderRadius:2,border:`1px solid ${T.border2}`,color:T.textMuted,display:"flex",alignItems:"center",gap:5}}>
                 <div style={{width:8,height:8,borderRadius:"50%",background:activePlayer==="p1"?p1Color.highlight:p2Color.highlight}}/>
                 {activePlayer==="p1"?state.p1Name:state.p2Name}
@@ -664,7 +663,7 @@ export default function App() {
               <button onClick={()=>setShowColorPicker("p1")} style={{position:"absolute",top:8,right:8,background:p1Color.highlight,border:"none",width:16,height:16,borderRadius:"50%",cursor:"pointer",opacity:0.8}} title="Change color"/>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:2}}>{state.p1Name.toUpperCase()}</div>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:p1Lead?p1Color.highlight:tied?"#888":"#E06C75",letterSpacing:1}}>{fmt(state.p1Balance)}</div>
-              <div style={{fontSize:10,color:T.textDim,marginTop:2}}>H2H {stats.p1H2hW}W-{stats.p2H2hW}L \u00b7 Solo {stats.p1SW}W-{stats.p1SL}L</div>
+              <div style={{fontSize:10,color:T.textDim,marginTop:2}}>H2H {stats.p1H2hW}W-{stats.p2H2hW}L &middot; Solo {stats.p1SW}W-{stats.p1SL}L</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 6px"}}>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:T.textDim,letterSpacing:2}}>VS</div>
@@ -675,13 +674,13 @@ export default function App() {
               <button onClick={()=>setShowColorPicker("p2")} style={{position:"absolute",top:8,left:8,background:p2Color.highlight,border:"none",width:16,height:16,borderRadius:"50%",cursor:"pointer",opacity:0.8}} title="Change color"/>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:2}}>{state.p2Name.toUpperCase()}</div>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:!p1Lead&&!tied?p2Color.highlight:tied?"#888":"#E06C75",letterSpacing:1}}>{fmt(state.p2Balance)}</div>
-              <div style={{fontSize:10,color:T.textDim,marginTop:2}}>H2H {stats.p2H2hW}W-{stats.p1H2hW}L \u00b7 Solo {stats.p2SW}W-{stats.p2SL}L</div>
+              <div style={{fontSize:10,color:T.textDim,marginTop:2}}>H2H {stats.p2H2hW}W-{stats.p1H2hW}L &middot; Solo {stats.p2SW}W-{stats.p2SL}L</div>
             </div>
           </div>
 
           {/* TABS */}
           <div style={{display:"flex",borderTop:`1px solid ${T.border}`,overflowX:"auto"}}>
-            {[["ledger","\ud83d\udcd2 LEDGER"],["stats","\ud83d\udcca STATS"],["modes","\u26a1 SPECIAL MODES"],["rules","\ud83d\udccb RULES"],["rankings","\U0001f3c6 RANKINGS"],["settings","\u2699\ufe0f SETTINGS"]].map(([t,l])=>(
+            {[["ledger","\ud83d\udcd2 LEDGER"],["stats","\ud83d\udcca STATS"],["modes","\u26a1 SPECIAL MODES"],["rules","\ud83d\udccb RULES"],["rankings","\uD83C\uDFC6 RANKINGS"],["settings","\u2699\ufe0f SETTINGS"]].map(([t,l])=>(
               <button key={t} className="tb" onClick={()=>setTab(t)} style={{color:tab===t?T.gold:T.textMuted,borderBottom:tab===t?`2px solid ${T.gold}`:"2px solid transparent",whiteSpace:"nowrap"}}>{l}</button>
             ))}
           </div>
@@ -690,7 +689,7 @@ export default function App() {
 
       <div style={{maxWidth:1100,margin:"0 auto",padding:"22px 20px"}}>
 
-        {/* \u2550\u2550\u2550 LEDGER \u2550\u2550\u2550 */}
+        {/* LEDGER */}
         {tab==="ledger"&&(
           <div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
@@ -762,7 +761,7 @@ export default function App() {
                             {bet.timestamp&&<div style={{color:T.textDim,fontSize:9}}>{fmtTime(bet.timestamp).split(" ").pop()}</div>}
                           </td>
                           <td style={{padding:"8px 9px"}}>
-                            {isAdj?<span style={{color:T.textMuted,fontSize:11}}>\u2014</span>:
+                            {isAdj?<span style={{color:T.textMuted,fontSize:11}}>&mdash;</span>:
                               <span style={{background:sportColors[bet.sport]||"#333",color:"#fff",fontSize:9,padding:"2px 6px",borderRadius:2,letterSpacing:1,fontFamily:"'Bebas Neue',cursive"}}>{bet.sport}</span>}
                           </td>
                           <td style={{padding:"8px 9px"}}>
@@ -777,7 +776,7 @@ export default function App() {
                             {bet.notes&&<div style={{color:T.textDim,fontSize:10,fontStyle:"italic"}}>{bet.notes}</div>}
                           </td>
                           <td style={{padding:"8px 9px",minWidth:100}}>
-                            {isAdj?<span style={{color:T.textMuted,fontSize:11}}>\u2014</span>
+                            {isAdj?<span style={{color:T.textMuted,fontSize:11}}>&mdash;</span>
                               :isPLE?(
                                 <div style={{fontSize:10}}>
                                   <div style={{color:p1Color.highlight}}>{state.p1Name.slice(0,7)}: {bet.p1Pick||"\u2014"} <span style={{color:T.gold}}>({fmt(bet.p1Stake||0)})</span></div>
@@ -837,7 +836,7 @@ export default function App() {
           </div>
         )}
 
-        {/* \u2550\u2550\u2550 STATS \u2550\u2550\u2550 */}
+        {/* STATS */}
         {tab==="stats"&&(
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             {[
@@ -872,7 +871,7 @@ export default function App() {
                 <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:T.gold,letterSpacing:2,marginBottom:12}}>BIGGEST BETS</div>
                 {[...bets].filter(b=>b.amount>0&&!b.isAdjustment).sort((a,b)=>b.amount-a.amount).slice(0,5).map(b=>(
                   <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${T.border}`}}>
-                    <div><div style={{fontSize:13,color:T.text}}>{b.description}</div><div style={{fontSize:10,color:T.textMuted}}>{b.date} \u00b7 {b.sport} \u00b7 {b.mode==="solo"?"Solo":"H2H"}</div></div>
+                    <div><div style={{fontSize:13,color:T.text}}>{b.description}</div><div style={{fontSize:10,color:T.textMuted}}>{b.date} &middot; {b.sport} &middot; {b.mode==="solo"?"Solo":"H2H"}</div></div>
                     <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold}}>{fmt(b.amount)}</div>
                   </div>
                 ))}
@@ -881,14 +880,13 @@ export default function App() {
           </div>
         )}
 
-        {/* \u2550\u2550\u2550 SPECIAL MODES \u2550\u2550\u2550 */}
+        {/* SPECIAL MODES */}
         {tab==="modes"&&(
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:2}}>TRACK WHEN SPECIAL MODES ARE INVOKED THIS SEASON</div>
               <button className="bg" style={{padding:"7px 16px",fontSize:13,borderRadius:2}} onClick={()=>{setModeLogForm(blankModeLog);setShowLogMode(true);}}>+ LOG INVOCATION</button>
             </div>
-
             {modeLog.length>0&&(
               <div style={{background:T.surface2,border:`1px solid ${T.border}`,borderRadius:3,padding:"14px 16px"}}>
                 <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:T.gold,letterSpacing:2,marginBottom:10}}>INVOCATION LOG</div>
@@ -900,7 +898,7 @@ export default function App() {
                         <span style={{fontSize:16}}>{mode?.icon||"\u26a1"}</span>
                         <div>
                           <div style={{fontSize:12,color:mode?.color||T.gold,fontFamily:"'Bebas Neue',cursive",letterSpacing:1}}>{mode?.name||entry.key}</div>
-                          <div style={{fontSize:10,color:T.textMuted}}>{entry.date} \u00b7 {entry.player==="p1"?state.p1Name:state.p2Name}{entry.note?` \u2014 ${entry.note}`:""}</div>
+                          <div style={{fontSize:10,color:T.textMuted}}>{entry.date} &middot; {entry.player==="p1"?state.p1Name:state.p2Name}{entry.note?` \u2014 ${entry.note}`:""}</div>
                         </div>
                       </div>
                       <button onClick={()=>deleteModeLog(entry.id)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color=T.textDim}>\u2715</button>
@@ -909,7 +907,6 @@ export default function App() {
                 })}
               </div>
             )}
-
             {SPECIAL_MODES.map(m=>{
               const seasonCount=modeUsageCount(m.key);
               const p1Count=modeUsageCount(m.key,"p1");
@@ -922,24 +919,8 @@ export default function App() {
                       <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:m.color,letterSpacing:3}}>{m.name}</div>
                     </div>
                     <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                      {m.trackPer==="season"&&(
-                        <div style={{background:T.surface2,border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}>
-                          <div style={{fontSize:9,color:T.textMuted,letterSpacing:1}}>USED THIS SEASON</div>
-                          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:seasonCount>0?m.color:T.textMuted}}>{seasonCount}</div>
-                        </div>
-                      )}
-                      {m.trackPer==="player"&&(
-                        <>
-                          <div style={{background:T.surface2,border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}>
-                            <div style={{fontSize:9,color:p1Color.highlight,letterSpacing:1}}>{state.p1Name.slice(0,8)}</div>
-                            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:p1Count>0?m.color:T.textMuted}}>{p1Count}</div>
-                          </div>
-                          <div style={{background:T.surface2,border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}>
-                            <div style={{fontSize:9,color:p2Color.highlight,letterSpacing:1}}>{state.p2Name.slice(0,8)}</div>
-                            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:p2Count>0?m.color:T.textMuted}}>{p2Count}</div>
-                          </div>
-                        </>
-                      )}
+                      {m.trackPer==="season"&&(<div style={{background:T.surface2,border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}><div style={{fontSize:9,color:T.textMuted,letterSpacing:1}}>USED THIS SEASON</div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:seasonCount>0?m.color:T.textMuted}}>{seasonCount}</div></div>)}
+                      {m.trackPer==="player"&&(<><div style={{background:T.surface2,border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}><div style={{fontSize:9,color:p1Color.highlight,letterSpacing:1}}>{state.p1Name.slice(0,8)}</div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:p1Count>0?m.color:T.textMuted}}>{p1Count}</div></div><div style={{background:T.surface2,border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}><div style={{fontSize:9,color:p2Color.highlight,letterSpacing:1}}>{state.p2Name.slice(0,8)}</div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:p2Count>0?m.color:T.textMuted}}>{p2Count}</div></div></>)}
                     </div>
                   </div>
                   <div style={{fontSize:13,color:T.textMuted,lineHeight:1.7,marginBottom:14}}>{m.body}</div>
@@ -957,16 +938,15 @@ export default function App() {
           </div>
         )}
 
-
-        {/* ═══ RANKINGS ═══ */}
+        {/* RANKINGS */}
         {tab==="rankings"&&(
           <div style={{display:"flex",flexDirection:"column",gap:20}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
               <div>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:T.gold,letterSpacing:3}}>🏆 WWE POWER RANKINGS</div>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:T.gold,letterSpacing:3}}>\uD83C\uDFC6 WWE POWER RANKINGS</div>
                 <div style={{fontSize:11,color:T.textMuted,marginTop:2}}>Separate Top 5 for Men&apos;s and Women&apos;s divisions. Title win = stack bonus.</div>
               </div>
-              <button className="gh" style={{padding:"8px 18px",fontSize:13,borderRadius:2,borderColor:"#1A4A1A",color:"#5AAF7A"}} onClick={()=>{setClaimForm(blankClaim);setShowClaimBonus(true);}}>💰 CLAIM BONUS</button>
+              <button className="gh" style={{padding:"8px 18px",fontSize:13,borderRadius:2,borderColor:"#1A4A1A",color:"#5AAF7A"}} onClick={()=>{setClaimForm(blankClaim);setShowClaimBonus(true);}}>&#x1F4B0; CLAIM BONUS</button>
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {RANK_BONUSES.map((bonus,i)=>(
@@ -978,8 +958,8 @@ export default function App() {
             </div>
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#6FA8DC",letterSpacing:3}}>💪 MEN&apos;S DIVISION</div>
-                <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#1A2A3A",color:"#6FA8DC"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"mens")]);setEditingRankings("mens");}}>✏ EDIT MY MENS TOP 5</button>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#6FA8DC",letterSpacing:3}}>&#x1F4AA; MEN&apos;S DIVISION</div>
+                <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#1A2A3A",color:"#6FA8DC"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"mens")]);setEditingRankings("mens");}}>&#x270F; EDIT MY MENS TOP 5</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[["p1",state.p1Name,p1Color],["p2",state.p2Name,p2Color]].map(([player,name,pColor])=>{
@@ -1011,12 +991,12 @@ export default function App() {
                           {playerLog.map(entry=>(
                             <div key={entry.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",borderBottom:`1px solid ${T.border}`}}>
                               <div>
-                                <div style={{fontSize:11,color:T.text}}>🏆 {entry.wrestler} <span style={{color:T.textMuted,fontSize:9}}>#{entry.rank+1}</span></div>
-                                <div style={{fontSize:9,color:T.textMuted}}>{entry.date} · {entry.titleWon}</div>
+                                <div style={{fontSize:11,color:T.text}}>\uD83C\uDFC6 {entry.wrestler} <span style={{color:T.textMuted,fontSize:9}}>#{entry.rank+1}</span></div>
+                                <div style={{fontSize:9,color:T.textMuted}}>{entry.date} &middot; {entry.titleWon}</div>
                               </div>
                               <div style={{display:"flex",alignItems:"center",gap:6}}>
                                 <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:"#5AAF7A"}}>+{fmt(entry.bonus)}</div>
-                                <button onClick={()=>deleteRankingLog(entry.id)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:10}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color=T.textDim}>✕</button>
+                                <button onClick={()=>deleteRankingLog(entry.id)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:10}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color=T.textDim}>\u2715</button>
                               </div>
                             </div>
                           ))}
@@ -1029,8 +1009,8 @@ export default function App() {
             </div>
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#E06C75",letterSpacing:3}}>👑 WOMEN&apos;S DIVISION</div>
-                <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#3A1A2A",color:"#E06C75"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"womens")]);setEditingRankings("womens");}}>✏ EDIT MY WOMENS TOP 5</button>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#E06C75",letterSpacing:3}}>&#x1F451; WOMEN&apos;S DIVISION</div>
+                <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#3A1A2A",color:"#E06C75"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"womens")]);setEditingRankings("womens");}}>&#x270F; EDIT MY WOMENS TOP 5</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[["p1",state.p1Name,p1Color],["p2",state.p2Name,p2Color]].map(([player,name,pColor])=>{
@@ -1062,12 +1042,12 @@ export default function App() {
                           {playerLog.map(entry=>(
                             <div key={entry.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",borderBottom:`1px solid ${T.border}`}}>
                               <div>
-                                <div style={{fontSize:11,color:T.text}}>🏆 {entry.wrestler} <span style={{color:T.textMuted,fontSize:9}}>#{entry.rank+1}</span></div>
-                                <div style={{fontSize:9,color:T.textMuted}}>{entry.date} · {entry.titleWon}</div>
+                                <div style={{fontSize:11,color:T.text}}>\uD83C\uDFC6 {entry.wrestler} <span style={{color:T.textMuted,fontSize:9}}>#{entry.rank+1}</span></div>
+                                <div style={{fontSize:9,color:T.textMuted}}>{entry.date} &middot; {entry.titleWon}</div>
                               </div>
                               <div style={{display:"flex",alignItems:"center",gap:6}}>
                                 <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:"#5AAF7A"}}>+{fmt(entry.bonus)}</div>
-                                <button onClick={()=>deleteRankingLog(entry.id)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:10}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color=T.textDim}>✕</button>
+                                <button onClick={()=>deleteRankingLog(entry.id)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:10}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color=T.textDim}>\u2715</button>
                               </div>
                             </div>
                           ))}
@@ -1084,19 +1064,19 @@ export default function App() {
                 <div>Separate Top 5 for Men&apos;s and Women&apos;s divisions.</div>
                 <div>Both players manage their own rosters independently.</div>
                 <div>Any title win by a ranked wrestler triggers a bonus.</div>
-                <div>Both players can rank the same wrestler — no penalty.</div>
+                <div>Both players can rank the same wrestler &mdash; no penalty.</div>
                 <div>Bonus auto-logs as a Balance Adjustment in the Ledger.</div>
-                <div>Rank #1=$20K &nbsp;·&nbsp; #2=$15K &nbsp;·&nbsp; #3=$10K &nbsp;·&nbsp; #4=$5K &nbsp;·&nbsp; #5=$3K</div>
+                <div>Rank #1=$20K &nbsp;&middot;&nbsp; #2=$15K &nbsp;&middot;&nbsp; #3=$10K &nbsp;&middot;&nbsp; #4=$5K &nbsp;&middot;&nbsp; #5=$3K</div>
               </div>
             </div>
           </div>
         )}
 
-        {/* \u2550\u2550\u2550 RULES \u2550\u2550\u2550 */}
+        {/* RULES */}
         {tab==="rules"&&(
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             <div style={{background:T.surface,border:`1px solid ${T.border}`,borderTop:`2px solid ${T.gold}`,padding:"18px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:T.gold,letterSpacing:3,marginBottom:14}}>BET TYPES & MULTIPLIERS</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:T.gold,letterSpacing:3,marginBottom:14}}>BET TYPES &amp; MULTIPLIERS</div>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead><tr style={{borderBottom:`1px solid ${T.border}`}}>{["BET TYPE","MULTIPLIER","AVAILABLE IN"].map(h=><th key={h} style={{padding:"6px 12px",textAlign:"left",fontFamily:"'Bebas Neue',cursive",fontSize:10,letterSpacing:2,color:T.textMuted}}>{h}</th>)}</tr></thead>
                 <tbody>
@@ -1134,11 +1114,9 @@ export default function App() {
           </div>
         )}
 
-        {/* \u2550\u2550\u2550 SETTINGS \u2550\u2550\u2550 */}
+        {/* SETTINGS */}
         {tab==="settings"&&(
           <div style={{display:"flex",flexDirection:"column",gap:16,maxWidth:700}}>
-
-            {/* WHO YOU ARE */}
             <div style={{background:T.surface,border:`1px solid ${T.border}`,borderTop:`2px solid ${T.gold}`,padding:"18px",borderRadius:3}}>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:14}}>\ud83d\udc64 ACTIVE PROFILE</div>
               <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
@@ -1153,13 +1131,11 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <div style={{fontSize:11,color:T.textMuted,marginTop:10}}>Your profile controls which theme is remembered on this device. Switching profiles switches themes.</div>
+              <div style={{fontSize:11,color:T.textMuted,marginTop:10}}>Your profile controls which theme is remembered on this device.</div>
             </div>
-
-            {/* THEME */}
             <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:6}}>\ud83c\udfa8 COLOR THEME</div>
-              <div style={{fontSize:11,color:T.textMuted,marginBottom:16}}>Your theme saves to this device only \u2014 the other player sees their own choice.</div>
+              <div style={{fontSize:11,color:T.textMuted,marginBottom:16}}>Your theme saves to this device only.</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
                 {Object.entries(THEMES).map(([key,theme])=>{
                   const active = themeKey === key;
@@ -1179,48 +1155,40 @@ export default function App() {
                 })}
               </div>
             </div>
-
-            {/* PLAYER NAMES */}
             <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:14}}>\u270f PLAYER NAMES</div>
               <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
                 {[["p1","PLAYER 1"],["p2","PLAYER 2"]].map(([k,l])=>(
-                  <div key={k}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>{l} \u2014 CURRENTLY: {state[k+"Name"]}</label><input className="fi" placeholder={state[k+"Name"]} value={nameForm[k]} onChange={e=>setNameForm({...nameForm,[k]:e.target.value})}/></div>
+                  <div key={k}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>{l} &mdash; CURRENTLY: {state[k+"Name"]}</label><input className="fi" placeholder={state[k+"Name"]} value={nameForm[k]} onChange={e=>setNameForm({...nameForm,[k]:e.target.value})}/></div>
                 ))}
               </div>
               <button className="bg" style={{padding:"10px 20px",fontSize:14,borderRadius:2}} onClick={saveNames}>SAVE NAMES</button>
             </div>
-
-            {/* BALANCE ADJUSTMENT */}
             <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#6FA8DC",letterSpacing:3,marginBottom:6}}>\u2696 BALANCE ADJUSTMENT</div>
-              <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Manual corrections to either stack. Logged with ADJ tag. Does not count as a bet.</div>
+              <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Manual corrections to either stack. Logged with ADJ tag.</div>
               <button className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,borderColor:"#1A1A2A",color:"#6FA8DC"}} onClick={()=>setShowAdjust(true)}>OPEN ADJUSTMENT PANEL</button>
             </div>
-
-            {/* IMPORT / EXPORT */}
             <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:6}}>\ud83d\udcc1 DATA</div>
               <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Export your full bet history to CSV, or import from a previously exported file.</div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                <button className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,borderColor:"#1A2A1A",color:"#5AAF7A"}} onClick={()=>exportCSV(bets,state.p1Name,state.p2Name)}>\u2193 Export CSV</button>
+                <button className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,borderColor:"#1A2A1A",color:"#5AAF7A"}} onClick={()=>exportCSV(bets)}>\u2193 Export CSV</button>
                 <label className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,cursor:"pointer",display:"inline-block",border:`1px solid ${T.border2}`,color:T.textMuted}}>
                   \u2191 Import CSV<input type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
                 </label>
               </div>
             </div>
-
-            {/* DANGER ZONE */}
             <div style={{background:T.surface,border:"1px solid #4A1A1A",borderLeft:"3px solid #C0392B",padding:"18px",borderRadius:3}}>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#C0392B",letterSpacing:3,marginBottom:6}}>\u26a0 DANGER ZONE</div>
-              <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Reset the season \u2014 clears all bets and resets both stacks to $100,000. This is permanent.</div>
+              <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Reset the season &mdash; clears all bets and resets both stacks to $100,000. This is permanent.</div>
               <button className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,borderColor:"#4A1A1A",color:"#C0392B"}} onClick={()=>setShowResetConfirm(true)}>\u21ba RESET SEASON</button>
             </div>
           </div>
         )}
       </div>
 
-      {/* \u2550\u2550\u2550 ADD / EDIT BET MODAL \u2550\u2550\u2550 */}
+      {/* ADD / EDIT BET MODAL */}
       {showAddBet&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${editingBet?"#6FA8DC":T.gold}`,borderRadius:4,width:"100%",maxWidth:560,maxHeight:"92vh",overflowY:"auto",padding:24}}>
@@ -1237,7 +1205,7 @@ export default function App() {
               <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>SPORT</label><select className="fi" value={form.sport} onChange={e=>setForm({...form,sport:e.target.value})}>{SPORTS.map(s=><option key={s}>{s}</option>)}</select></div>
               <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>BET TYPE</label>
                 <select className="fi" value={form.betType} onChange={e=>{const bt=BET_TYPES.find(b=>b.label===e.target.value);setForm({...form,betType:e.target.value,payout:parseFloat(bt?.multiplier)||1});}}>
-                  {BET_TYPES.map(b=><option key={b.label}>{b.label} \u2014 {b.multiplier}</option>)}
+                  {BET_TYPES.map(b=><option key={b.label}>{b.label} &mdash; {b.multiplier}</option>)}
                 </select>
               </div>
               {form.mode==="solo"&&!editingBet&&(
@@ -1287,12 +1255,12 @@ export default function App() {
         </div>
       )}
 
-      {/* \u2550\u2550\u2550 WWE PLE MODAL \u2550\u2550\u2550 */}
+      {/* WWE PLE MODAL */}
       {showPLE&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:"1px solid #3A1A1A",borderTop:"2px solid #9b1c1c",borderRadius:4,width:"100%",maxWidth:700,maxHeight:"92vh",overflowY:"auto",padding:24}}>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#F08080",letterSpacing:3,marginBottom:4}}>\ud83e\udd3c WWE PLE CARD BUILDER</div>
-            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Each player enters picks separately \u2014 hidden until both lock in. Stakes auto-scale by match count.</div>
+            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Each player enters picks separately. Stakes auto-scale by match count.</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:10,marginBottom:14}}>
               <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>EVENT NAME *</label><input className="fi" placeholder="e.g. WrestleMania 41" value={pleForm.eventName} onChange={e=>setPleForm({...pleForm,eventName:e.target.value})}/></div>
               <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>DATE</label><input type="date" className="fi" value={pleForm.date} onChange={e=>setPleForm({...pleForm,date:e.target.value})}/></div>
@@ -1309,7 +1277,7 @@ export default function App() {
               })}
             </div>
             <div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"7px 12px",borderRadius:2,marginBottom:12,fontSize:11,color:T.textMuted}}>
-              {pleEntryPlayer==="p1"?`${state.p1Name} is entering picks. ${state.p2Name}&apos;s picks are hidden until locked.`:`${state.p2Name} is entering picks. ${state.p1Name}'s picks are hidden until locked.`}
+              {pleEntryPlayer==="p1"?`${state.p1Name} is entering picks.`:`${state.p2Name} is entering picks.`}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {pleForm.matches.map((m,i)=>{
@@ -1336,7 +1304,7 @@ export default function App() {
             <div style={{display:"flex",gap:10,marginTop:14}}>
               {!pleForm.matches.every(m=>m[`${pleEntryPlayer}Locked`])&&(
                 <button style={{flex:1,padding:"11px",border:"none",borderRadius:2,cursor:"pointer",fontFamily:"'Bebas Neue',cursive",fontSize:15,letterSpacing:2,background:pleEntryPlayer==="p1"?"#1A2A3A":"#2A1A1A",color:pleEntryPlayer==="p1"?p1Color.highlight:p2Color.highlight}} onClick={()=>lockPlayerPicks(pleEntryPlayer)}>
-                  \ud83d\udd12 LOCK {(pleEntryPlayer==="p1"?state.p1Name:state.p2Name).toUpperCase()}'S PICKS
+                  \ud83d\udd12 LOCK {(pleEntryPlayer==="p1"?state.p1Name:state.p2Name).toUpperCase()} PICKS
                 </button>
               )}
               {bothLocked&&<button className="bg" style={{flex:1,padding:"11px",fontSize:15,borderRadius:2}} onClick={addPLECard}>\u2713 SUBMIT PLE CARD</button>}
@@ -1347,7 +1315,7 @@ export default function App() {
         </div>
       )}
 
-      {/* \u2550\u2550\u2550 LOG SPECIAL MODE MODAL \u2550\u2550\u2550 */}
+      {/* LOG SPECIAL MODE MODAL */}
       {showLogMode&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${T.gold}`,borderRadius:4,width:"100%",maxWidth:420,padding:24}}>
@@ -1375,12 +1343,12 @@ export default function App() {
         </div>
       )}
 
-      {/* \u2550\u2550\u2550 ADJUSTMENT MODAL \u2550\u2550\u2550 */}
+      {/* ADJUSTMENT MODAL */}
       {showAdjust&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:"2px solid #6FA8DC",borderRadius:4,width:"100%",maxWidth:420,padding:24}}>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#6FA8DC",letterSpacing:3,marginBottom:4}}>\u2696 BALANCE ADJUSTMENT</div>
-            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Manual correction or carry-over. Logged with ADJ tag. Does not count as a bet.</div>
+            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Manual correction or carry-over. Logged with ADJ tag.</div>
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>ADJUST WHICH PLAYER?</label>
                 <div style={{display:"flex",gap:8}}>
@@ -1401,7 +1369,7 @@ export default function App() {
               {adjustForm.amount&&(
                 <div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"9px 13px",borderRadius:2,fontSize:12,color:T.textMuted}}>
                   <span style={{color:adjustForm.direction==="add"?"#5AAF7A":"#E06C75"}}>{adjustForm.direction==="add"?"+":"-"}{fmt(parseInt(String(adjustForm.amount).replace(/,/g,""))||0)}</span>
-                  {" "}to {adjustForm.target==="p1"?state.p1Name:state.p2Name}&apos;s stack \u2192{" "}
+                  {" "}to {adjustForm.target==="p1"?state.p1Name:state.p2Name}&apos;s stack &rarr;{" "}
                   <span style={{color:T.gold,fontFamily:"'Bebas Neue',cursive",fontSize:15}}>{fmt((adjustForm.target==="p1"?state.p1Balance:state.p2Balance)+(adjustForm.direction==="add"?1:-1)*(parseInt(String(adjustForm.amount).replace(/,/g,""))||0))}</span>
                 </div>
               )}
@@ -1414,7 +1382,7 @@ export default function App() {
         </div>
       )}
 
-      {/* \u2550\u2550\u2550 COLOR PICKER MODAL \u2550\u2550\u2550 */}
+      {/* COLOR PICKER MODAL */}
       {showColorPicker&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${T.gold}`,borderRadius:4,width:"100%",maxWidth:380,padding:24}}>
@@ -1437,8 +1405,7 @@ export default function App() {
         </div>
       )}
 
-
-      {/* ═══ EDIT RANKINGS MODAL ═══ */}
+      {/* EDIT RANKINGS MODAL */}
       {editingRankings&&(()=>{
         const isMens = editingRankings==="mens";
         const divColor = isMens?"#6FA8DC":"#E06C75";
@@ -1447,7 +1414,7 @@ export default function App() {
         return(
           <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
             <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${divColor}`,borderRadius:4,width:"100%",maxWidth:460,maxHeight:"92vh",overflowY:"auto",padding:24}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:divColor,letterSpacing:3,marginBottom:2}}>{isMens?"💪":"👑"} {myName.toUpperCase()} — {divLabel} TOP 5</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:divColor,letterSpacing:3,marginBottom:2}}>{isMens?"&#x1F4AA;":"&#x1F451;"} {myName.toUpperCase()} &mdash; {divLabel} TOP 5</div>
               <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Your picks only. Won&apos;t affect the other player&apos;s roster.</div>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {rankForm.map((w,i)=>(
@@ -1470,11 +1437,11 @@ export default function App() {
         );
       })()}
 
-      {/* ═══ CLAIM BONUS MODAL ═══ */}
+      {/* CLAIM BONUS MODAL */}
       {showClaimBonus&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:"2px solid #5AAF7A",borderRadius:4,width:"100%",maxWidth:480,maxHeight:"92vh",overflowY:"auto",padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#5AAF7A",letterSpacing:3,marginBottom:4}}>💰 CLAIM RANKING BONUS</div>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#5AAF7A",letterSpacing:3,marginBottom:4}}>&#x1F4B0; CLAIM RANKING BONUS</div>
             <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Select which player, which division, which ranked wrestler won a title.</div>
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
               <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>WHICH PLAYER?</label>
@@ -1486,7 +1453,7 @@ export default function App() {
               </div>
               <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>WHICH DIVISION?</label>
                 <div style={{display:"flex",gap:8}}>
-                  {[["mens","💪 MENS","#6FA8DC"],["womens","👑 WOMENS","#E06C75"]].map(([v,l,col])=>(
+                  {[["mens","&#x1F4AA; MENS","#6FA8DC"],["womens","&#x1F451; WOMENS","#E06C75"]].map(([v,l,col])=>(
                     <button key={v} onClick={()=>setClaimForm({...claimForm,division:v,rank:0})} style={{flex:1,padding:"9px",border:`1px solid ${claimForm.division===v?col:T.border2}`,background:claimForm.division===v?`${col}22`:"transparent",color:claimForm.division===v?col:T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{l}</button>
                   ))}
                 </div>
@@ -1519,10 +1486,10 @@ export default function App() {
                 const wrestler=rankings[claimForm.rank]?.name;
                 const bonus=RANK_BONUSES[claimForm.rank];
                 const playerName=claimForm.player==="p1"?state.p1Name:state.p2Name;
-                const divLabel=claimForm.division==="mens"?"Men's":"Women's";
+                const divLabel=claimForm.division==="mens"?"Men\u2019s":"Women\u2019s";
                 return wrestler?(
                   <div style={{background:"#0A2A1A",border:"1px solid #1A4A1A",padding:"10px 14px",borderRadius:3,fontSize:12}}>
-                    <div style={{color:"#5AAF7A",fontFamily:"'Bebas Neue',cursive",fontSize:16,letterSpacing:1}}>✓ {playerName} claims +{fmt(bonus)}</div>
+                    <div style={{color:"#5AAF7A",fontFamily:"'Bebas Neue',cursive",fontSize:16,letterSpacing:1}}>\u2713 {playerName} claims +{fmt(bonus)}</div>
                     <div style={{color:T.textMuted,marginTop:3}}>{wrestler} ({divLabel} Rank #{claimForm.rank+1}) won the {claimForm.titleWon}</div>
                   </div>
                 ):null;
@@ -1536,7 +1503,7 @@ export default function App() {
         </div>
       )}
 
-      {/* \u2550\u2550\u2550 RESET CONFIRM \u2550\u2550\u2550 */}
+      {/* RESET CONFIRM */}
       {showResetConfirm&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:"1px solid #4A1A1A",borderTop:"2px solid #C0392B",borderRadius:4,width:"100%",maxWidth:340,padding:24,textAlign:"center"}}>
