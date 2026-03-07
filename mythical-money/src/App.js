@@ -690,17 +690,19 @@ export default function App() {
         .sb{background:transparent;border:1px solid;font-size:11px;padding:3px 7px;border-radius:2px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap}
         .pill{display:inline-flex;align-items:center;font-size:10px;padding:2px 8px;border-radius:10px;font-family:'Bebas Neue',cursive;letter-spacing:1px}
         select.fi option{background:${T.inputBg};color:${T.text}}
+        @keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
       `}</style>
 
       {/* HEADER */}
       <div style={{borderBottom:`1px solid ${T.border}`,padding:"0 20px"}}>
         <div style={{maxWidth:1100,margin:"0 auto"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 0 0",flexWrap:"wrap",gap:8}}>
-            <div>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,background:`linear-gradient(135deg,${T.goldBright},${T.gold})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:3,lineHeight:1}}>MYTHICAL MONEY</div>
+            <div style={{flex:1}}/>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,letterSpacing:3,lineHeight:1,background:`linear-gradient(90deg,${T.gold} 0%,${T.goldBright} 40%,#FFF8DC 50%,${T.goldBright} 60%,${T.gold} 100%)`,backgroundSize:"200% auto",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",animation:"shimmer 3s linear infinite"}}>MYTHICAL MONEY</div>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:3,marginTop:2}}>SEASON {state.season} &middot; RESETS AFTER NBA FINALS</div>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+            <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,flexWrap:"wrap"}}>
               {saveStatus&&<span style={{fontSize:10,color:saveStatus==="saved"?"#5AAF7A":saveStatus==="error"?"#E06C75":T.gold,letterSpacing:1}}>{saveStatus==="saving"?"SAVING...":saveStatus==="saved"?"✓ SYNCED":"⚠ ERROR"}</span>}
               <button className="gh" style={{padding:"5px 10px",fontSize:11,borderRadius:2,borderColor:"#4A1A1A",color:"#C0392B"}} onClick={()=>setShowResetConfirm(true)}>↺ Reset</button>
               <div style={{padding:"5px 10px",fontSize:11,borderRadius:2,border:`1px solid ${T.border2}`,color:T.textMuted,display:"flex",alignItems:"center",gap:5}}>
@@ -734,7 +736,7 @@ export default function App() {
 
           {/* TABS */}
           <div style={{display:"flex",borderTop:`1px solid ${T.border}`,overflowX:"auto"}}>
-            {[["ledger","📒 LEDGER"],["stats","📊 STATS"],["modes","⚡ SPECIAL MODES"],["rules","📋 RULES"],["rankings","🏆 POWER RANKINGS"],["settings","⚙️ SETTINGS"]].map(([t,l])=>(
+            {[["ledger","📒 LEDGER"],["rankings","🏆 POWER RANKINGS"],["stats","📊 STATS"],["modes","⚡ SPECIAL MODES"],["rules","📋 RULES"],["settings","⚙️ SETTINGS"]].map(([t,l])=>(
               <button key={t} className="tb" onClick={()=>setTab(t)} style={{color:tab===t?T.gold:T.textMuted,borderBottom:tab===t?`2px solid ${T.gold}`:"2px solid transparent",whiteSpace:"nowrap"}}>{l}</button>
             ))}
           </div>
