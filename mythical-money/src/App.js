@@ -55,13 +55,94 @@ const PLAYER_COLORS = [
   { label:"White", highlight:"#e5e7eb", font:"#080808" },
 ];
 
+// ── THEMES ────────────────────────────────────────────────────────────────────
+const THEMES = {
+  obsidian: {
+    name: "Obsidian", icon: "⬛",
+    bg: "#080808", surface: "#0E0E0E", surface2: "#111111",
+    border: "#1A1A1A", border2: "#2A2A2A",
+    text: "#E8E4DC", textMuted: "#444444", textDim: "#2A2A2A",
+    gold: "#D4A017", goldBright: "#F5C842",
+    inputBg: "#111111", inputBorder: "#2A2A2A",
+    scrollTrack: "#111", scrollThumb: "#333",
+    modalBg: "#0D0D0D", modalOverlay: "rgba(0,0,0,0.9)",
+    rowHover: "#0F0F0F",
+  },
+  slate: {
+    name: "Slate", icon: "🌑",
+    bg: "#111827", surface: "#1F2937", surface2: "#1A2332",
+    border: "#2D3748", border2: "#374151",
+    text: "#E2E8F0", textMuted: "#64748B", textDim: "#374151",
+    gold: "#F0B429", goldBright: "#FBBF24",
+    inputBg: "#1A2332", inputBorder: "#2D3748",
+    scrollTrack: "#1F2937", scrollThumb: "#374151",
+    modalBg: "#1A2332", modalOverlay: "rgba(0,0,0,0.85)",
+    rowHover: "#243040",
+  },
+  light: {
+    name: "Light", icon: "☀️",
+    bg: "#F8F5EE", surface: "#FFFFFF", surface2: "#F3EFE6",
+    border: "#E5DDD0", border2: "#D4C9B8",
+    text: "#1A1208", textMuted: "#786A52", textDim: "#C9BAA4",
+    gold: "#B8860B", goldBright: "#D4A017",
+    inputBg: "#FFFFFF", inputBorder: "#D4C9B8",
+    scrollTrack: "#F3EFE6", scrollThumb: "#D4C9B8",
+    modalBg: "#FFFFFF", modalOverlay: "rgba(0,0,0,0.5)",
+    rowHover: "#FAF7F2",
+  },
+  lakers: {
+    name: "Lakers", icon: "🟣",
+    bg: "#1A0A2E", surface: "#24124A", surface2: "#1F0F40",
+    border: "#3D1F6E", border2: "#552583",
+    text: "#FDB927", textMuted: "#9B72CF", textDim: "#3D1F6E",
+    gold: "#FDB927", goldBright: "#FFD04D",
+    inputBg: "#1F0F40", inputBorder: "#552583",
+    scrollTrack: "#1A0A2E", scrollThumb: "#552583",
+    modalBg: "#1F0F40", modalOverlay: "rgba(10,0,20,0.92)",
+    rowHover: "#2A1550",
+  },
+  celtics: {
+    name: "Celtics", icon: "🍀",
+    bg: "#001A0A", surface: "#002E14", surface2: "#00240F",
+    border: "#004D22", border2: "#007A33",
+    text: "#FFFFFF", textMuted: "#5DAF7A", textDim: "#004D22",
+    gold: "#BA9653", goldBright: "#D4AF6A",
+    inputBg: "#00240F", inputBorder: "#007A33",
+    scrollTrack: "#001A0A", scrollThumb: "#007A33",
+    modalBg: "#001E0C", modalOverlay: "rgba(0,10,4,0.92)",
+    rowHover: "#003818",
+  },
+  dodgers: {
+    name: "Dodgers", icon: "⚾",
+    bg: "#001433", surface: "#00204F", surface2: "#001A42",
+    border: "#003580", border2: "#005A9C",
+    text: "#FFFFFF", textMuted: "#6FA8DC", textDim: "#003580",
+    gold: "#EF3E42", goldBright: "#FF6B6E",
+    inputBg: "#001A42", inputBorder: "#005A9C",
+    scrollTrack: "#001433", scrollThumb: "#005A9C",
+    modalBg: "#001A42", modalOverlay: "rgba(0,10,30,0.92)",
+    rowHover: "#002860",
+  },
+  redsox: {
+    name: "Red Sox", icon: "🔴",
+    bg: "#0C1020", surface: "#1A1830", surface2: "#141228",
+    border: "#2A2448", border2: "#3D366A",
+    text: "#FFFFFF", textMuted: "#BD3039", textDim: "#2A2448",
+    gold: "#BD3039", goldBright: "#E04550",
+    inputBg: "#141228", inputBorder: "#3D366A",
+    scrollTrack: "#0C1020", scrollThumb: "#3D366A",
+    modalBg: "#141228", modalOverlay: "rgba(5,5,15,0.92)",
+    rowHover: "#201E38",
+  },
+};
+
 const initialState = {
   p1Name: "Player 1", p2Name: "Player 2",
   p1Balance: STARTING_STACK, p2Balance: STARTING_STACK,
   p1Color: { highlight:"#1d4ed8", font:"#ffffff" },
   p2Color: { highlight:"#E06C75", font:"#080808" },
   bets: [], season: new Date().getFullYear(),
-  modeLog: [], // [{key, player, date, note}]
+  modeLog: [],
 };
 
 function recalcBalances(bets) {
@@ -105,37 +186,29 @@ function parseCSV(text) {
   const lines = text.trim().split("\n");
   if (lines.length < 2) return [];
   return lines.slice(1).map((line, i) => {
-    const vals = line.match(/".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$/g) || [];
+    const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || [];
     const clean = vals.map(v => v.replace(/^"|"$/g, "").replace(/""/g, '"'));
     const mode = clean[4] || "h2h";
     const notes = clean[13] || "";
     const rawP1Pick = clean[6] || "";
     const rawP2Pick = clean[7] || "";
-
-    // Derive soloPlayer: check Notes for "Solo: CG/GB", fallback to which pick column has data
     let soloPlayer = null;
     if (mode === "solo") {
       if (notes.includes("Solo: CG") || notes.includes("Solo: p1")) soloPlayer = "p1";
       else if (notes.includes("Solo: GB") || notes.includes("Solo: p2")) soloPlayer = "p2";
       else if (rawP1Pick && !rawP2Pick) soloPlayer = "p1";
       else if (rawP2Pick && !rawP1Pick) soloPlayer = "p2";
-      else soloPlayer = "p1"; // fallback
+      else soloPlayer = "p1";
     }
-
-    // For solo bets, normalize pick into p1Pick (display always reads p1Pick for solo)
-    const p1Pick = mode === "solo"
-      ? (soloPlayer === "p1" ? rawP1Pick : rawP2Pick)
-      : rawP1Pick;
+    const p1Pick = mode === "solo" ? (soloPlayer === "p1" ? rawP1Pick : rawP2Pick) : rawP1Pick;
     const p2Pick = mode === "solo" ? "" : rawP2Pick;
-
     return {
       id: Date.now() + i,
       date: clean[0] || new Date().toISOString().slice(0,10),
       timestamp: null,
       sport: clean[2] || "Other",
       betType: clean[3] || "Straight Win/Loss",
-      mode,
-      soloPlayer,
+      mode, soloPlayer,
       description: clean[5] || "",
       p1Pick, p2Pick,
       amount: parseInt(clean[8]) || 0,
@@ -149,17 +222,45 @@ function parseCSV(text) {
   }).filter(b => b.description);
 }
 
+// ── PROFILE SELECTOR SCREEN ───────────────────────────────────────────────────
+function ProfileSelector({ p1Name, p2Name, onSelect }) {
+  const t = THEMES.obsidian;
+  return (
+    <div style={{background:t.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Georgia,serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap');`}</style>
+      <div style={{textAlign:"center",padding:40}}>
+        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:42,background:"linear-gradient(135deg,#F5C842,#D4A017)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:4,marginBottom:6}}>MYTHICAL MONEY</div>
+        <div style={{fontSize:11,color:"#444",letterSpacing:4,marginBottom:48}}>WHO ARE YOU?</div>
+        <div style={{display:"flex",gap:20,justifyContent:"center"}}>
+          {[["p1",p1Name,"#1d4ed8"],["p2",p2Name,"#E06C75"]].map(([key,name,color])=>(
+            <button key={key} onClick={()=>onSelect(key)}
+              style={{background:"#0E0E0E",border:`2px solid ${color}`,borderRadius:6,padding:"32px 48px",cursor:"pointer",transition:"all .2s",minWidth:160}}
+              onMouseEnter={e=>{e.currentTarget.style.background="#1A1A1A";e.currentTarget.style.transform="translateY(-3px)";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="#0E0E0E";e.currentTarget.style.transform="translateY(0)";}}>
+              <div style={{width:48,height:48,borderRadius:"50%",background:color,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#fff"}}>{name.slice(0,1)}</span>
+              </div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:color,letterSpacing:2}}>{name}</div>
+            </button>
+          ))}
+        </div>
+        <div style={{fontSize:10,color:"#2A2A2A",marginTop:32,letterSpacing:2}}>YOUR THEME PREFERENCE SAVES TO THIS DEVICE</div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [state, setState] = useState(initialState);
   const [tab, setTab] = useState("ledger");
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("");
   const [showAddBet, setShowAddBet] = useState(false);
-  const [editingBet, setEditingBet] = useState(null); // bet object being edited
+  const [editingBet, setEditingBet] = useState(null);
   const [showPLE, setShowPLE] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
   const [showLogMode, setShowLogMode] = useState(false);
-  const [showColorPicker, setShowColorPicker] = useState(null); // "p1" | "p2" | null
+  const [showColorPicker, setShowColorPicker] = useState(null);
   const [editingNames, setEditingNames] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [filterSport, setFilterSport] = useState("All");
@@ -167,6 +268,33 @@ export default function App() {
   const [filterMode, setFilterMode] = useState("All");
   const [sortCol, setSortCol] = useState("timestamp");
   const [sortDir, setSortDir] = useState("desc");
+
+  // Profile + theme (localStorage, per device)
+  const [activePlayer, setActivePlayer] = useState(null); // null = show selector
+  const [themeKey, setThemeKey] = useState("obsidian");
+
+  // On mount: restore profile + theme from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("mm_player");
+    const savedTheme = localStorage.getItem("mm_theme_" + saved);
+    if (saved) setActivePlayer(saved);
+    if (savedTheme && THEMES[savedTheme]) setThemeKey(savedTheme);
+  }, []);
+
+  const selectPlayer = (player) => {
+    setActivePlayer(player);
+    localStorage.setItem("mm_player", player);
+    const savedTheme = localStorage.getItem("mm_theme_" + player);
+    if (savedTheme && THEMES[savedTheme]) setThemeKey(savedTheme);
+    else setThemeKey("obsidian");
+  };
+
+  const selectTheme = (key) => {
+    setThemeKey(key);
+    if (activePlayer) localStorage.setItem("mm_theme_" + activePlayer, key);
+  };
+
+  const T = THEMES[themeKey] || THEMES.obsidian;
 
   const blankForm = { date: new Date().toISOString().slice(0,10), sport:"NBA", betType:"Straight Win/Loss", mode:"h2h", soloPlayer:"p1", description:"", p1Pick:"", p2Pick:"", amount:"", payout:1, result:"Pending", winner:"none", soloResult:"Pending", notes:"" };
   const [form, setForm] = useState(blankForm);
@@ -182,7 +310,7 @@ export default function App() {
   const blankModeLog = { modeKey:"kings_claim", player:"p1", note:"" };
   const [modeLogForm, setModeLogForm] = useState(blankModeLog);
 
-  // ── Firebase ─────────────────────────────────────────────────────────────
+  // ── Firebase ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const dbRef = ref(db, DB_KEY);
     const unsub = onValue(dbRef, (snapshot) => {
@@ -234,7 +362,6 @@ export default function App() {
     const pOut = parseFloat(form.payout)||1;
 
     if (editingBet) {
-      // Update existing pending bet
       updateState((prev) => {
         const bets = (prev.bets||[]).map(b => b.id===editingBet.id ? {
           ...b, date:form.date, sport:form.sport, betType:form.betType,
@@ -427,19 +554,20 @@ export default function App() {
     totalWagered:bets.filter(b=>!b.isAdjustment).reduce((s,b)=>s+(b.amount||0),0),
   };
 
-  // Mode log helpers
   const modeUsageCount = (key, player) => modeLog.filter(m=>m.key===key&&(player?m.player===player:true)).length;
 
   const p1Lead=state.p1Balance>state.p2Balance;
   const tied=state.p1Balance===state.p2Balance;
   const sportColors={NBA:"#1d4ed8",WWE:"#9b1c1c","MMA/Boxing":"#6d28d9",NFL:"#166534",MLB:"#0e4d8a",WNBA:"#c2410c",Other:"#92400e"};
+
   const rc=(r)=>{
-    if(r==="Pending") return{bg:"#3A2A0A",color:"#D4A017"};
-    if(r==="Push") return{bg:"#1A1A1A",color:"#666"};
-    if(r==="Win") return{bg:"#0A2A1A",color:"#5AAF7A"};
-    if(r==="Loss") return{bg:"#2A0A0A",color:"#E06C75"};
-    if(r==="Applied") return{bg:"#1A1A2A",color:"#6FA8DC"};
-    return{bg:"#0A2A1A",color:"#5AAF7A"};
+    const isDark = themeKey !== "light";
+    if(r==="Pending") return{bg:isDark?"#3A2A0A":"#FEF3C7",color:"#D4A017"};
+    if(r==="Push") return{bg:isDark?"#1A1A1A":"#F3F4F6",color:"#6B7280"};
+    if(r==="Win") return{bg:isDark?"#0A2A1A":"#D1FAE5",color:"#059669"};
+    if(r==="Loss") return{bg:isDark?"#2A0A0A":"#FEE2E2",color:"#E06C75"};
+    if(r==="Applied") return{bg:isDark?"#1A1A2A":"#EDE9FE",color:"#6FA8DC"};
+    return{bg:isDark?"#0A2A1A":"#D1FAE5",color:"#059669"};
   };
 
   const pleTiers=getPleTiers(pleForm.matchCount);
@@ -447,71 +575,83 @@ export default function App() {
   const p2AllLocked=pleForm.matches.every(m=>m.p2Locked);
   const bothLocked=p1AllLocked&&p2AllLocked;
 
-  const thStyle=(col)=>({ padding:"7px 9px", textAlign:"left", fontFamily:"'Bebas Neue',cursive", fontSize:10, letterSpacing:2, color:sortCol===col?"#D4A017":"#3A3A3A", whiteSpace:"nowrap", cursor:"pointer", userSelect:"none", background:sortCol===col?"#0A0A0A":"transparent" });
+  const thStyle=(col)=>({ padding:"7px 9px", textAlign:"left", fontFamily:"'Bebas Neue',cursive", fontSize:10, letterSpacing:2, color:sortCol===col?T.gold:T.textMuted, whiteSpace:"nowrap", cursor:"pointer", userSelect:"none", background:sortCol===col?T.surface2:"transparent" });
 
-  if(loading) return <div style={{background:"#080808",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{fontFamily:"monospace",color:"#D4A017",fontSize:18,letterSpacing:4}}>LOADING...</div></div>;
+  // Show profile selector if no player chosen
+  if (!activePlayer) {
+    return <ProfileSelector p1Name={state.p1Name} p2Name={state.p2Name} onSelect={selectPlayer} />;
+  }
+
+  if(loading) return (
+    <div style={{background:T.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{fontFamily:"monospace",color:T.gold,fontSize:18,letterSpacing:4}}>LOADING...</div>
+    </div>
+  );
 
   return (
-    <div style={{background:"#080808",minHeight:"100vh",fontFamily:"Georgia,serif",color:"#E8E4DC"}}>
+    <div style={{background:T.bg,minHeight:"100vh",fontFamily:"Georgia,serif",color:T.text}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap');
         *{box-sizing:border-box} input,select,textarea{font-family:'DM Sans',sans-serif}
-        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:#111} ::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
-        .bg{background:linear-gradient(135deg,#D4A017,#F5C842);color:#080808;border:none;font-family:'Bebas Neue',cursive;letter-spacing:2px;cursor:pointer;transition:opacity .2s,transform .1s}
+        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:${T.scrollTrack}} ::-webkit-scrollbar-thumb{background:${T.scrollThumb};border-radius:2px}
+        .bg{background:linear-gradient(135deg,${T.goldBright},${T.gold});color:${themeKey==="light"?"#1A1208":"#080808"};border:none;font-family:'Bebas Neue',cursive;letter-spacing:2px;cursor:pointer;transition:opacity .2s,transform .1s}
         .bg:hover{opacity:.9;transform:translateY(-1px)}
-        .gh{background:transparent;border:1px solid #2A2A2A;color:#888;font-family:'DM Sans',sans-serif;cursor:pointer;transition:border-color .2s,color .2s}
-        .gh:hover{border-color:#D4A017;color:#D4A017}
+        .gh{background:transparent;border:1px solid ${T.border2};color:${T.textMuted};font-family:'DM Sans',sans-serif;cursor:pointer;transition:border-color .2s,color .2s}
+        .gh:hover{border-color:${T.gold};color:${T.gold}}
         .tb{background:transparent;border:none;cursor:pointer;font-family:'Bebas Neue',cursive;letter-spacing:2px;padding:10px 10px;font-size:12px;transition:all .2s}
-        .fi{background:#111;border:1px solid #2A2A2A;color:#E8E4DC;padding:8px 12px;border-radius:2px;width:100%;font-size:14px;outline:none;transition:border-color .2s}
-        .fi:focus{border-color:#D4A017}
-        .br:hover td{background:#0F0F0F}
+        .fi{background:${T.inputBg};border:1px solid ${T.inputBorder};color:${T.text};padding:8px 12px;border-radius:2px;width:100%;font-size:14px;outline:none;transition:border-color .2s}
+        .fi:focus{border-color:${T.gold}}
+        .br:hover td{background:${T.rowHover}}
         .sb{background:transparent;border:1px solid;font-size:11px;padding:3px 7px;border-radius:2px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap}
         .pill{display:inline-flex;align-items:center;font-size:10px;padding:2px 8px;border-radius:10px;font-family:'Bebas Neue',cursive;letter-spacing:1px}
+        select.fi option{background:${T.inputBg};color:${T.text}}
       `}</style>
 
       {/* HEADER */}
-      <div style={{borderBottom:"1px solid #1A1A1A",padding:"0 20px"}}>
+      <div style={{borderBottom:`1px solid ${T.border}`,padding:"0 20px"}}>
         <div style={{maxWidth:1100,margin:"0 auto"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 0 0",flexWrap:"wrap",gap:8}}>
             <div>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,background:"linear-gradient(135deg,#F5C842,#D4A017)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:3,lineHeight:1}}>MYTHICAL MONEY</div>
-              <div style={{fontSize:10,color:"#444",letterSpacing:3,marginTop:2}}>SEASON {state.season} · RESETS AFTER NBA FINALS</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,background:`linear-gradient(135deg,${T.goldBright},${T.gold})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:3,lineHeight:1}}>MYTHICAL MONEY</div>
+              <div style={{fontSize:10,color:T.textMuted,letterSpacing:3,marginTop:2}}>SEASON {state.season} · RESETS AFTER NBA FINALS</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-              {saveStatus&&<span style={{fontSize:10,color:saveStatus==="saved"?"#5AAF7A":saveStatus==="error"?"#E06C75":"#D4A017",letterSpacing:1}}>{saveStatus==="saving"?"SAVING...":saveStatus==="saved"?"✓ SYNCED":"⚠ ERROR"}</span>}
-              <button className="gh" style={{padding:"5px 10px",fontSize:11,borderRadius:2}} onClick={()=>{setNameForm({p1:state.p1Name,p2:state.p2Name});setEditingNames(true);}}>✏ Names</button>
-              <button className="gh" style={{padding:"5px 10px",fontSize:11,borderRadius:2,borderColor:"#1A1A2A",color:"#6FA8DC"}} onClick={()=>setShowAdjust(true)}>⚖ Adjust</button>
+              {saveStatus&&<span style={{fontSize:10,color:saveStatus==="saved"?"#5AAF7A":saveStatus==="error"?"#E06C75":T.gold,letterSpacing:1}}>{saveStatus==="saving"?"SAVING...":saveStatus==="saved"?"✓ SYNCED":"⚠ ERROR"}</span>}
               <button className="gh" style={{padding:"5px 10px",fontSize:11,borderRadius:2,borderColor:"#4A1A1A",color:"#C0392B"}} onClick={()=>setShowResetConfirm(true)}>↺ Reset</button>
+              {/* Who am I indicator */}
+              <div style={{padding:"5px 10px",fontSize:11,borderRadius:2,border:`1px solid ${T.border2}`,color:T.textMuted,display:"flex",alignItems:"center",gap:5}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:activePlayer==="p1"?p1Color.highlight:p2Color.highlight}}/>
+                {activePlayer==="p1"?state.p1Name:state.p2Name}
+                <button onClick={()=>setActivePlayer(null)} style={{background:"none",border:"none",color:T.textMuted,cursor:"pointer",fontSize:9,marginLeft:2,padding:0}}>▼</button>
+              </div>
             </div>
           </div>
 
           {/* BALANCE BAR */}
           <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,padding:"12px 0"}}>
-            {/* P1 */}
-            <div style={{background:"#0E0E0E",border:`2px solid ${p1Lead?p1Color.highlight:"#1A1A1A"}`,borderRadius:3,padding:"12px 14px",position:"relative"}}>
+            <div style={{background:T.surface,border:`2px solid ${p1Lead?p1Color.highlight:T.border}`,borderRadius:3,padding:"12px 14px",position:"relative"}}>
               <button onClick={()=>setShowColorPicker("p1")} style={{position:"absolute",top:8,right:8,background:p1Color.highlight,border:"none",width:16,height:16,borderRadius:"50%",cursor:"pointer",opacity:0.8}} title="Change color"/>
-              <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:2}}>{state.p1Name.toUpperCase()}</div>
+              <div style={{fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:2}}>{state.p1Name.toUpperCase()}</div>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:p1Lead?p1Color.highlight:tied?"#888":"#E06C75",letterSpacing:1}}>{fmt(state.p1Balance)}</div>
-              <div style={{fontSize:10,color:"#333",marginTop:2}}>H2H {stats.p1H2hW}W-{stats.p2H2hW}L · Solo {stats.p1SW}W-{stats.p1SL}L</div>
+              <div style={{fontSize:10,color:T.textDim,marginTop:2}}>H2H {stats.p1H2hW}W-{stats.p2H2hW}L · Solo {stats.p1SW}W-{stats.p1SL}L</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 6px"}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:"#2A2A2A",letterSpacing:2}}>VS</div>
-              {!tied&&<div style={{fontFamily:"'Bebas Neue',cursive",fontSize:10,color:"#D4A017",marginTop:3}}>▲{fmtShort(Math.abs(state.p1Balance-state.p2Balance))}</div>}
-              {tied&&<div style={{fontSize:10,color:"#333",marginTop:3}}>EVEN</div>}
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:T.textDim,letterSpacing:2}}>VS</div>
+              {!tied&&<div style={{fontFamily:"'Bebas Neue',cursive",fontSize:10,color:T.gold,marginTop:3}}>▲{fmtShort(Math.abs(state.p1Balance-state.p2Balance))}</div>}
+              {tied&&<div style={{fontSize:10,color:T.textMuted,marginTop:3}}>EVEN</div>}
             </div>
-            {/* P2 */}
-            <div style={{background:"#0E0E0E",border:`2px solid ${!p1Lead&&!tied?p2Color.highlight:"#1A1A1A"}`,borderRadius:3,padding:"12px 14px",textAlign:"right",position:"relative"}}>
+            <div style={{background:T.surface,border:`2px solid ${!p1Lead&&!tied?p2Color.highlight:T.border}`,borderRadius:3,padding:"12px 14px",textAlign:"right",position:"relative"}}>
               <button onClick={()=>setShowColorPicker("p2")} style={{position:"absolute",top:8,left:8,background:p2Color.highlight,border:"none",width:16,height:16,borderRadius:"50%",cursor:"pointer",opacity:0.8}} title="Change color"/>
-              <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:2}}>{state.p2Name.toUpperCase()}</div>
+              <div style={{fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:2}}>{state.p2Name.toUpperCase()}</div>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:!p1Lead&&!tied?p2Color.highlight:tied?"#888":"#E06C75",letterSpacing:1}}>{fmt(state.p2Balance)}</div>
-              <div style={{fontSize:10,color:"#333",marginTop:2}}>H2H {stats.p2H2hW}W-{stats.p1H2hW}L · Solo {stats.p2SW}W-{stats.p2SL}L</div>
+              <div style={{fontSize:10,color:T.textDim,marginTop:2}}>H2H {stats.p2H2hW}W-{stats.p1H2hW}L · Solo {stats.p2SW}W-{stats.p2SL}L</div>
             </div>
           </div>
 
           {/* TABS */}
-          <div style={{display:"flex",borderTop:"1px solid #1A1A1A",overflowX:"auto"}}>
-            {[["ledger","📒 LEDGER"],["stats","📊 STATS"],["modes","⚡ SPECIAL MODES"],["rules","📋 RULES"]].map(([t,l])=>(
-              <button key={t} className="tb" onClick={()=>setTab(t)} style={{color:tab===t?"#D4A017":"#444",borderBottom:tab===t?"2px solid #D4A017":"2px solid transparent",whiteSpace:"nowrap"}}>{l}</button>
+          <div style={{display:"flex",borderTop:`1px solid ${T.border}`,overflowX:"auto"}}>
+            {[["ledger","📒 LEDGER"],["stats","📊 STATS"],["modes","⚡ SPECIAL MODES"],["rules","📋 RULES"],["settings","⚙️ SETTINGS"]].map(([t,l])=>(
+              <button key={t} className="tb" onClick={()=>setTab(t)} style={{color:tab===t?T.gold:T.textMuted,borderBottom:tab===t?`2px solid ${T.gold}`:"2px solid transparent",whiteSpace:"nowrap"}}>{l}</button>
             ))}
           </div>
         </div>
@@ -541,10 +681,6 @@ export default function App() {
                 </select>
               </div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                <button className="gh" style={{padding:"7px 12px",fontSize:12,borderRadius:2,borderColor:"#1A2A1A",color:"#5AAF7A"}} onClick={()=>exportCSV(bets,state.p1Name,state.p2Name)}>↓ Export CSV</button>
-                <label className="gh" style={{padding:"7px 12px",fontSize:12,borderRadius:2,cursor:"pointer",display:"inline-block"}}>
-                  ↑ Import CSV<input type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
-                </label>
                 <button className="gh" style={{padding:"7px 12px",fontSize:12,borderRadius:2,borderColor:"#3A1A1A",color:"#F08080",fontFamily:"'Bebas Neue',cursive",letterSpacing:2}} onClick={()=>{setPleForm(blankPLE);setPleEntryPlayer("p1");setShowPLE(true);}}>🤼 WWE PLE</button>
                 <button className="bg" style={{padding:"7px 16px",fontSize:14,borderRadius:2}} onClick={()=>{setEditingBet(null);setForm(blankForm);setShowAddBet(true);}}>+ LOG BET</button>
               </div>
@@ -552,15 +688,15 @@ export default function App() {
 
             <div style={{display:"flex",gap:1,marginBottom:18}}>
               {[{l:"Total Bets",v:stats.total},{l:"Pending",v:stats.pending},{l:"Settled",v:stats.settled},{l:"Total Wagered",v:fmt(stats.totalWagered)}].map(s=>(
-                <div key={s.l} style={{flex:1,background:"#0E0E0E",padding:"7px 8px",textAlign:"center"}}>
-                  <div style={{fontSize:9,color:"#444",letterSpacing:1}}>{s.l}</div>
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#D4A017"}}>{s.v}</div>
+                <div key={s.l} style={{flex:1,background:T.surface,padding:"7px 8px",textAlign:"center"}}>
+                  <div style={{fontSize:9,color:T.textMuted,letterSpacing:1}}>{s.l}</div>
+                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:T.gold}}>{s.v}</div>
                 </div>
               ))}
             </div>
 
             {sortedBets.length===0?(
-              <div style={{textAlign:"center",padding:"60px 20px",color:"#2A2A2A"}}>
+              <div style={{textAlign:"center",padding:"60px 20px",color:T.textDim}}>
                 <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:26,letterSpacing:3}}>NO BETS LOGGED</div>
                 <div style={{fontSize:12,marginTop:6}}>Hit + LOG BET or WWE PLE to get started</div>
               </div>
@@ -568,7 +704,7 @@ export default function App() {
               <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead>
-                    <tr style={{borderBottom:"1px solid #1A1A1A"}}>
+                    <tr style={{borderBottom:`1px solid ${T.border}`}}>
                       <th style={thStyle("timestamp")} onClick={()=>toggleSort("timestamp")}>TIME{sortIndicator("timestamp")}</th>
                       <th style={thStyle("sport")} onClick={()=>toggleSort("sport")}>SPORT{sortIndicator("sport")}</th>
                       <th style={{...thStyle("mode"),cursor:"default"}}>TYPE</th>
@@ -589,13 +725,13 @@ export default function App() {
                       const rC=rc(bet.result);
                       const canEdit=bet.result==="Pending"&&!isAdj&&!isPLE;
                       return (
-                        <tr key={bet.id} className="br" style={{borderBottom:"1px solid #0F0F0F"}}>
-                          <td style={{padding:"8px 9px",color:"#3A3A3A",whiteSpace:"nowrap",fontSize:10}}>
+                        <tr key={bet.id} className="br" style={{borderBottom:`1px solid ${T.border}`}}>
+                          <td style={{padding:"8px 9px",color:T.textMuted,whiteSpace:"nowrap",fontSize:10}}>
                             <div>{bet.date}</div>
-                            {bet.timestamp&&<div style={{color:"#2A2A2A",fontSize:9}}>{fmtTime(bet.timestamp).split(" ").pop()}</div>}
+                            {bet.timestamp&&<div style={{color:T.textDim,fontSize:9}}>{fmtTime(bet.timestamp).split(" ").pop()}</div>}
                           </td>
                           <td style={{padding:"8px 9px"}}>
-                            {isAdj?<span style={{color:"#444",fontSize:11}}>—</span>:
+                            {isAdj?<span style={{color:T.textMuted,fontSize:11}}>—</span>:
                               <span style={{background:sportColors[bet.sport]||"#333",color:"#fff",fontSize:9,padding:"2px 6px",borderRadius:2,letterSpacing:1,fontFamily:"'Bebas Neue',cursive"}}>{bet.sport}</span>}
                           </td>
                           <td style={{padding:"8px 9px"}}>
@@ -605,19 +741,19 @@ export default function App() {
                               :<span className="pill" style={{background:"#1A2A3A",color:"#6FA8DC"}}>H2H</span>}
                           </td>
                           <td style={{padding:"8px 9px",maxWidth:180}}>
-                            <div style={{color:"#E8E4DC",fontWeight:500,lineHeight:1.4}}>{bet.description}</div>
-                            {!isAdj&&<div style={{color:"#3A3A3A",fontSize:10,marginTop:1}}>{bet.betType}{isSolo&&bet.payout!==1?` · ${bet.payout}x`:""}</div>}
-                            {bet.notes&&<div style={{color:"#2A2A2A",fontSize:10,fontStyle:"italic"}}>{bet.notes}</div>}
+                            <div style={{color:T.text,fontWeight:500,lineHeight:1.4}}>{bet.description}</div>
+                            {!isAdj&&<div style={{color:T.textMuted,fontSize:10,marginTop:1}}>{bet.betType}{isSolo&&bet.payout!==1?` · ${bet.payout}x`:""}</div>}
+                            {bet.notes&&<div style={{color:T.textDim,fontSize:10,fontStyle:"italic"}}>{bet.notes}</div>}
                           </td>
                           <td style={{padding:"8px 9px",minWidth:100}}>
-                            {isAdj?<span style={{color:"#444",fontSize:11}}>—</span>
+                            {isAdj?<span style={{color:T.textMuted,fontSize:11}}>—</span>
                               :isPLE?(
                                 <div style={{fontSize:10}}>
-                                  <div style={{color:p1Color.highlight}}>{state.p1Name.slice(0,7)}: {bet.p1Pick||"—"} <span style={{color:"#D4A017"}}>({fmt(bet.p1Stake||0)})</span></div>
-                                  <div style={{color:p2Color.highlight,marginTop:2}}>{state.p2Name.slice(0,7)}: {bet.p2Pick||"—"} <span style={{color:"#D4A017"}}>({fmt(bet.p2Stake||0)})</span></div>
+                                  <div style={{color:p1Color.highlight}}>{state.p1Name.slice(0,7)}: {bet.p1Pick||"—"} <span style={{color:T.gold}}>({fmt(bet.p1Stake||0)})</span></div>
+                                  <div style={{color:p2Color.highlight,marginTop:2}}>{state.p2Name.slice(0,7)}: {bet.p2Pick||"—"} <span style={{color:T.gold}}>({fmt(bet.p2Stake||0)})</span></div>
                                 </div>
                               ):isSolo?(
-                                <div style={{fontSize:10,color:"#888"}}>{(bet.soloPlayer==="p1"?state.p1Name:state.p2Name).slice(0,7)}: {bet.p1Pick||"—"}</div>
+                                <div style={{fontSize:10,color:T.textMuted}}>{(bet.soloPlayer==="p1"?state.p1Name:state.p2Name).slice(0,7)}: {bet.p1Pick||"—"}</div>
                               ):(
                                 <div style={{fontSize:10}}>
                                   <div style={{color:p1Color.highlight}}>{state.p1Name.slice(0,7)}: {bet.p1Pick||"—"}</div>
@@ -625,8 +761,8 @@ export default function App() {
                                 </div>
                               )}
                           </td>
-                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:15,color:isAdj?"#6FA8DC":"#D4A017",whiteSpace:"nowrap"}}>
-                            {isAdj?(bet.adjustAmount>0?"+":"")+fmt(bet.adjustAmount):isPLE?<span style={{fontSize:10,color:"#3A3A3A"}}>see picks</span>:fmt(bet.amount)}
+                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:15,color:isAdj?"#6FA8DC":T.gold,whiteSpace:"nowrap"}}>
+                            {isAdj?(bet.adjustAmount>0?"+":"")+fmt(bet.adjustAmount):isPLE?<span style={{fontSize:10,color:T.textMuted}}>see picks</span>:fmt(bet.amount)}
                           </td>
                           <td style={{padding:"8px 9px",minWidth:130}}>
                             {bet.result==="Pending"?(
@@ -648,16 +784,16 @@ export default function App() {
                               <span style={{background:rC.bg,color:rC.color,fontSize:9,padding:"3px 8px",borderRadius:2,letterSpacing:1}}>{bet.result.toUpperCase()}</span>
                             )}
                           </td>
-                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:13,color:isAdj&&bet.adjustTarget==="p1"?"#6FA8DC":bet.winner==="p1"?"#5AAF7A":bet.winner==="p2"?"#E06C75":"#888",whiteSpace:"nowrap"}}>
+                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:13,color:isAdj&&bet.adjustTarget==="p1"?"#6FA8DC":bet.winner==="p1"?"#5AAF7A":bet.winner==="p2"?"#E06C75":T.textMuted,whiteSpace:"nowrap"}}>
                             {bet.p1BalAfter!=null?fmt(bet.p1BalAfter):"—"}
                           </td>
-                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:13,color:isAdj&&bet.adjustTarget==="p2"?"#6FA8DC":bet.winner==="p2"?"#5AAF7A":bet.winner==="p1"?"#E06C75":"#888",whiteSpace:"nowrap"}}>
+                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:13,color:isAdj&&bet.adjustTarget==="p2"?"#6FA8DC":bet.winner==="p2"?"#5AAF7A":bet.winner==="p1"?"#E06C75":T.textMuted,whiteSpace:"nowrap"}}>
                             {bet.p2BalAfter!=null?fmt(bet.p2BalAfter):"—"}
                           </td>
                           <td style={{padding:"8px 6px"}}>
                             <div style={{display:"flex",gap:4}}>
-                              {canEdit&&<button onClick={()=>openEditBet(bet)} style={{background:"transparent",border:"none",color:"#2A2A2A",cursor:"pointer",fontSize:11,transition:"color .15s"}} onMouseEnter={e=>e.target.style.color="#D4A017"} onMouseLeave={e=>e.target.style.color="#2A2A2A"}>✏</button>}
-                              <button onClick={()=>deleteBet(bet.id)} style={{background:"transparent",border:"none",color:"#222",cursor:"pointer",fontSize:12,transition:"color .15s"}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color="#222"}>✕</button>
+                              {canEdit&&<button onClick={()=>openEditBet(bet)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:11,transition:"color .15s"}} onMouseEnter={e=>e.target.style.color=T.gold} onMouseLeave={e=>e.target.style.color=T.textDim}>✏</button>}
+                              <button onClick={()=>deleteBet(bet.id)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:12,transition:"color .15s"}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color=T.textDim}>✕</button>
                             </div>
                           </td>
                         </tr>
@@ -683,30 +819,30 @@ export default function App() {
               {l:`${state.p1Name} Season P&L`,v:fmt(state.p1Balance-STARTING_STACK),sub:state.p1Balance>=STARTING_STACK?"▲ In the green":"▼ In the red",gain:state.p1Balance>=STARTING_STACK},
               {l:`${state.p2Name} Season P&L`,v:fmt(state.p2Balance-STARTING_STACK),sub:state.p2Balance>=STARTING_STACK?"▲ In the green":"▼ In the red",gain:state.p2Balance>=STARTING_STACK},
             ].map(s=>(
-              <div key={s.l} style={{background:"#0E0E0E",border:"1px solid #1A1A1A",padding:"16px",borderRadius:3}}>
-                <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:5}}>{s.l.toUpperCase()}</div>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:30,color:s.gain===false?"#E06C75":s.gain?"#5AAF7A":"#D4A017",letterSpacing:1}}>{s.v}</div>
-                <div style={{fontSize:11,color:"#333",marginTop:3}}>{s.sub}</div>
+              <div key={s.l} style={{background:T.surface,border:`1px solid ${T.border}`,padding:"16px",borderRadius:3}}>
+                <div style={{fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:5}}>{s.l.toUpperCase()}</div>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:30,color:s.gain===false?"#E06C75":s.gain?"#5AAF7A":T.gold,letterSpacing:1}}>{s.v}</div>
+                <div style={{fontSize:11,color:T.textMuted,marginTop:3}}>{s.sub}</div>
               </div>
             ))}
-            <div style={{gridColumn:"1/-1",background:"#0E0E0E",border:"1px solid #1A1A1A",padding:"16px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#D4A017",letterSpacing:2,marginBottom:12}}>BETS BY SPORT</div>
+            <div style={{gridColumn:"1/-1",background:T.surface,border:`1px solid ${T.border}`,padding:"16px",borderRadius:3}}>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:T.gold,letterSpacing:2,marginBottom:12}}>BETS BY SPORT</div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {SPORTS.map(sp=>{const c=bets.filter(b=>b.sport===sp).length;if(!c)return null;return(
-                  <div key={sp} style={{background:"#111",border:`1px solid ${sportColors[sp]}44`,padding:"8px 12px",borderRadius:3,borderTop:`2px solid ${sportColors[sp]}`}}>
-                    <div style={{fontSize:9,color:"#444"}}>{sp}</div>
-                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:sportColors[sp]||"#D4A017"}}>{c}</div>
+                  <div key={sp} style={{background:T.surface2,border:`1px solid ${sportColors[sp]}44`,padding:"8px 12px",borderRadius:3,borderTop:`2px solid ${sportColors[sp]}`}}>
+                    <div style={{fontSize:9,color:T.textMuted}}>{sp}</div>
+                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:sportColors[sp]||T.gold}}>{c}</div>
                   </div>
                 );})}
               </div>
             </div>
             {bets.filter(b=>b.amount>0&&!b.isAdjustment).length>0&&(
-              <div style={{gridColumn:"1/-1",background:"#0E0E0E",border:"1px solid #1A1A1A",padding:"16px",borderRadius:3}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#D4A017",letterSpacing:2,marginBottom:12}}>BIGGEST BETS</div>
+              <div style={{gridColumn:"1/-1",background:T.surface,border:`1px solid ${T.border}`,padding:"16px",borderRadius:3}}>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:T.gold,letterSpacing:2,marginBottom:12}}>BIGGEST BETS</div>
                 {[...bets].filter(b=>b.amount>0&&!b.isAdjustment).sort((a,b)=>b.amount-a.amount).slice(0,5).map(b=>(
-                  <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid #111"}}>
-                    <div><div style={{fontSize:13,color:"#E8E4DC"}}>{b.description}</div><div style={{fontSize:10,color:"#333"}}>{b.date} · {b.sport} · {b.mode==="solo"?"Solo":"H2H"}</div></div>
-                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#D4A017"}}>{fmt(b.amount)}</div>
+                  <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${T.border}`}}>
+                    <div><div style={{fontSize:13,color:T.text}}>{b.description}</div><div style={{fontSize:10,color:T.textMuted}}>{b.date} · {b.sport} · {b.mode==="solo"?"Solo":"H2H"}</div></div>
+                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold}}>{fmt(b.amount)}</div>
                   </div>
                 ))}
               </div>
@@ -718,26 +854,25 @@ export default function App() {
         {tab==="modes"&&(
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontSize:10,color:"#444",letterSpacing:2}}>TRACK WHEN SPECIAL MODES ARE INVOKED THIS SEASON</div>
+              <div style={{fontSize:10,color:T.textMuted,letterSpacing:2}}>TRACK WHEN SPECIAL MODES ARE INVOKED THIS SEASON</div>
               <button className="bg" style={{padding:"7px 16px",fontSize:13,borderRadius:2}} onClick={()=>{setModeLogForm(blankModeLog);setShowLogMode(true);}}>+ LOG INVOCATION</button>
             </div>
 
-            {/* Mode log history */}
             {modeLog.length>0&&(
-              <div style={{background:"#0A0A0A",border:"1px solid #1A1A1A",borderRadius:3,padding:"14px 16px"}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:"#D4A017",letterSpacing:2,marginBottom:10}}>INVOCATION LOG</div>
+              <div style={{background:T.surface2,border:`1px solid ${T.border}`,borderRadius:3,padding:"14px 16px"}}>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:T.gold,letterSpacing:2,marginBottom:10}}>INVOCATION LOG</div>
                 {modeLog.map(entry=>{
                   const mode=SPECIAL_MODES.find(m=>m.key===entry.key);
                   return(
-                    <div key={entry.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #111"}}>
+                    <div key={entry.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${T.border}`}}>
                       <div style={{display:"flex",gap:10,alignItems:"center"}}>
                         <span style={{fontSize:16}}>{mode?.icon||"⚡"}</span>
                         <div>
-                          <div style={{fontSize:12,color:mode?.color||"#D4A017",fontFamily:"'Bebas Neue',cursive",letterSpacing:1}}>{mode?.name||entry.key}</div>
-                          <div style={{fontSize:10,color:"#444"}}>{entry.date} · {entry.player==="p1"?state.p1Name:state.p2Name}{entry.note?` — ${entry.note}`:""}</div>
+                          <div style={{fontSize:12,color:mode?.color||T.gold,fontFamily:"'Bebas Neue',cursive",letterSpacing:1}}>{mode?.name||entry.key}</div>
+                          <div style={{fontSize:10,color:T.textMuted}}>{entry.date} · {entry.player==="p1"?state.p1Name:state.p2Name}{entry.note?` — ${entry.note}`:""}</div>
                         </div>
                       </div>
-                      <button onClick={()=>deleteModeLog(entry.id)} style={{background:"transparent",border:"none",color:"#222",cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color="#222"}>✕</button>
+                      <button onClick={()=>deleteModeLog(entry.id)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:12}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color=T.textDim}>✕</button>
                     </div>
                   );
                 })}
@@ -749,7 +884,7 @@ export default function App() {
               const p1Count=modeUsageCount(m.key,"p1");
               const p2Count=modeUsageCount(m.key,"p2");
               return(
-                <div key={m.name} style={{background:"#0E0E0E",border:`1px solid ${m.border}`,borderLeft:`3px solid ${m.color}`,borderRadius:3,padding:"18px 22px"}}>
+                <div key={m.name} style={{background:T.surface,border:`1px solid ${m.border}`,borderLeft:`3px solid ${m.color}`,borderRadius:3,padding:"18px 22px"}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
                       <div style={{fontSize:26}}>{m.icon}</div>
@@ -757,30 +892,30 @@ export default function App() {
                     </div>
                     <div style={{display:"flex",gap:8,alignItems:"center"}}>
                       {m.trackPer==="season"&&(
-                        <div style={{background:"#111",border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}>
-                          <div style={{fontSize:9,color:"#444",letterSpacing:1}}>USED THIS SEASON</div>
-                          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:seasonCount>0?m.color:"#333"}}>{seasonCount}</div>
+                        <div style={{background:T.surface2,border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}>
+                          <div style={{fontSize:9,color:T.textMuted,letterSpacing:1}}>USED THIS SEASON</div>
+                          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:seasonCount>0?m.color:T.textMuted}}>{seasonCount}</div>
                         </div>
                       )}
                       {m.trackPer==="player"&&(
                         <>
-                          <div style={{background:"#111",border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}>
+                          <div style={{background:T.surface2,border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}>
                             <div style={{fontSize:9,color:p1Color.highlight,letterSpacing:1}}>{state.p1Name.slice(0,8)}</div>
-                            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:p1Count>0?m.color:"#333"}}>{p1Count}</div>
+                            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:p1Count>0?m.color:T.textMuted}}>{p1Count}</div>
                           </div>
-                          <div style={{background:"#111",border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}>
+                          <div style={{background:T.surface2,border:`1px solid ${m.border}`,padding:"4px 12px",borderRadius:2,textAlign:"center"}}>
                             <div style={{fontSize:9,color:p2Color.highlight,letterSpacing:1}}>{state.p2Name.slice(0,8)}</div>
-                            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:p2Count>0?m.color:"#333"}}>{p2Count}</div>
+                            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:p2Count>0?m.color:T.textMuted}}>{p2Count}</div>
                           </div>
                         </>
                       )}
                     </div>
                   </div>
-                  <div style={{fontSize:13,color:"#777",lineHeight:1.7,marginBottom:14}}>{m.body}</div>
+                  <div style={{fontSize:13,color:T.textMuted,lineHeight:1.7,marginBottom:14}}>{m.body}</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
                     {[["TRIGGER",m.trigger],["PAYOUT",m.payout],["LIMIT",m.limit]].map(([label,val])=>(
-                      <div key={label} style={{background:"#111",border:"1px solid #1A1A1A",padding:"8px 10px",borderRadius:2}}>
-                        <div style={{fontSize:9,color:"#444",letterSpacing:2,marginBottom:3}}>{label}</div>
+                      <div key={label} style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"8px 10px",borderRadius:2}}>
+                        <div style={{fontSize:9,color:T.textMuted,letterSpacing:2,marginBottom:3}}>{label}</div>
                         <div style={{fontSize:11,color:m.color,lineHeight:1.4}}>{val}</div>
                       </div>
                     ))}
@@ -794,24 +929,24 @@ export default function App() {
         {/* ═══ RULES ═══ */}
         {tab==="rules"&&(
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <div style={{background:"#0E0E0E",border:"1px solid #1A1A1A",borderTop:"2px solid #D4A017",padding:"18px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"#D4A017",letterSpacing:3,marginBottom:14}}>BET TYPES & MULTIPLIERS</div>
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderTop:`2px solid ${T.gold}`,padding:"18px",borderRadius:3}}>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:T.gold,letterSpacing:3,marginBottom:14}}>BET TYPES & MULTIPLIERS</div>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                <thead><tr style={{borderBottom:"1px solid #1A1A1A"}}>{["BET TYPE","MULTIPLIER","AVAILABLE IN"].map(h=><th key={h} style={{padding:"6px 12px",textAlign:"left",fontFamily:"'Bebas Neue',cursive",fontSize:10,letterSpacing:2,color:"#444"}}>{h}</th>)}</tr></thead>
+                <thead><tr style={{borderBottom:`1px solid ${T.border}`}}>{["BET TYPE","MULTIPLIER","AVAILABLE IN"].map(h=><th key={h} style={{padding:"6px 12px",textAlign:"left",fontFamily:"'Bebas Neue',cursive",fontSize:10,letterSpacing:2,color:T.textMuted}}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {BET_TYPES.map(bt=><tr key={bt.label} style={{borderBottom:"1px solid #0F0F0F"}}><td style={{padding:"8px 12px",color:"#E8E4DC"}}>{bt.label}</td><td style={{padding:"8px 12px",fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#F5C842"}}>{bt.multiplier}</td><td style={{padding:"8px 12px",color:"#444",fontSize:11}}>{bt.sports}</td></tr>)}
-                  <tr><td style={{padding:"8px 12px",color:"#E8E4DC"}}>WWE PLE Card</td><td style={{padding:"8px 12px",fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#F5C842"}}>1x per match</td><td style={{padding:"8px 12px",color:"#444",fontSize:11}}>WWE only</td></tr>
+                  {BET_TYPES.map(bt=><tr key={bt.label} style={{borderBottom:`1px solid ${T.border}`}}><td style={{padding:"8px 12px",color:T.text}}>{bt.label}</td><td style={{padding:"8px 12px",fontFamily:"'Bebas Neue',cursive",fontSize:17,color:T.goldBright}}>{bt.multiplier}</td><td style={{padding:"8px 12px",color:T.textMuted,fontSize:11}}>{bt.sports}</td></tr>)}
+                  <tr><td style={{padding:"8px 12px",color:T.text}}>WWE PLE Card</td><td style={{padding:"8px 12px",fontFamily:"'Bebas Neue',cursive",fontSize:17,color:T.goldBright}}>1x per match</td><td style={{padding:"8px 12px",color:T.textMuted,fontSize:11}}>WWE only</td></tr>
                 </tbody>
               </table>
             </div>
-            <div style={{background:"#110A0A",border:"1px solid #3A1A1A",borderLeft:"3px solid #9b1c1c",padding:"14px 18px",borderRadius:2}}>
+            <div style={{background:T.surface,border:`1px solid #3A1A1A`,borderLeft:"3px solid #9b1c1c",padding:"14px 18px",borderRadius:2}}>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,letterSpacing:2,color:"#F08080",marginBottom:10}}>🤼 WWE PLE STAKE SCALE</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
                 {[4,5,6,7,8].map(n=>(
-                  <div key={n} style={{background:"#111",border:"1px solid #1A1A1A",padding:"10px 8px",borderRadius:2,textAlign:"center"}}>
+                  <div key={n} style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"10px 8px",borderRadius:2,textAlign:"center"}}>
                     <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:13,color:"#F08080",marginBottom:6}}>{n} MATCHES</div>
-                    {getPleTiers(n).map(t=><div key={t} style={{fontSize:11,color:"#D4A017",lineHeight:1.6}}>{fmtShort(t)}</div>)}
-                    <div style={{fontSize:10,color:"#444",marginTop:6}}>Max: {fmtShort(getPleTiers(n).reduce((a,b)=>a+b,0))}</div>
+                    {getPleTiers(n).map(t=><div key={t} style={{fontSize:11,color:T.gold,lineHeight:1.6}}>{fmtShort(t)}</div>)}
+                    <div style={{fontSize:10,color:T.textMuted,marginTop:6}}>Max: {fmtShort(getPleTiers(n).reduce((a,b)=>a+b,0))}</div>
                   </div>
                 ))}
               </div>
@@ -820,50 +955,135 @@ export default function App() {
               {num:"01",title:"STARTING STACK",body:"Both players begin at $100,000 Mythical Money. No real cash — pride and bragging rights only."},
               {num:"02",title:"SEASON RESET",body:"Season ends the night of the NBA Finals clinching game. Whoever has more MM wins. Stacks reset to $100,000."},
               {num:"03",title:"BET LIMITS",body:"Minimum bet: $1,000 MM. Max single H2H bet: 30% of your current stack. Solo bets have no cap."},
-              {num:"04",title:"BALANCE ADJUSTMENTS",body:"Use the ⚖ Adjust button to apply manual corrections to either stack. Logged with ADJ tag. Does not count as a bet."},
+              {num:"04",title:"BALANCE ADJUSTMENTS",body:"Use the ⚖ Adjust button in Settings to apply manual corrections to either stack. Logged with ADJ tag. Does not count as a bet."},
               {num:"05",title:"BAILOUT RULE",body:"Drop below $10,000? One-time bailout to $15,000 — but forfeit your next H2H winning payout to your opponent."},
               {num:"06",title:"GENTLEMAN'S HONOR",body:"All H2H bets agreed before the event starts. No retroactive bets. Your word is law."},
               {num:"07",title:"PUSH / DEAD HEAT",body:"Tie or no-contest? Original wager returned. Nobody wins, nobody loses."},
             ].map(r=>(
-              <div key={r.num} style={{display:"flex",gap:16,background:"#0E0E0E",border:"1px solid #1A1A1A",borderLeft:"3px solid #D4A017",padding:"13px 16px",borderRadius:2}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#D4A017",opacity:.2,lineHeight:1,minWidth:34}}>{r.num}</div>
-                <div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:15,letterSpacing:2,color:"#F5C842",marginBottom:3}}>{r.title}</div><div style={{fontSize:13,color:"#777",lineHeight:1.6}}>{r.body}</div></div>
+              <div key={r.num} style={{display:"flex",gap:16,background:T.surface,border:`1px solid ${T.border}`,borderLeft:`3px solid ${T.gold}`,padding:"13px 16px",borderRadius:2}}>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:T.gold,opacity:.2,lineHeight:1,minWidth:34}}>{r.num}</div>
+                <div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:15,letterSpacing:2,color:T.goldBright,marginBottom:3}}>{r.title}</div><div style={{fontSize:13,color:T.textMuted,lineHeight:1.6}}>{r.body}</div></div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ═══ SETTINGS ═══ */}
+        {tab==="settings"&&(
+          <div style={{display:"flex",flexDirection:"column",gap:16,maxWidth:700}}>
+
+            {/* WHO YOU ARE */}
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderTop:`2px solid ${T.gold}`,padding:"18px",borderRadius:3}}>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:14}}>👤 ACTIVE PROFILE</div>
+              <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                {[["p1",state.p1Name,p1Color.highlight],["p2",state.p2Name,p2Color.highlight]].map(([key,name,color])=>(
+                  <button key={key} onClick={()=>selectPlayer(key)}
+                    style={{display:"flex",alignItems:"center",gap:8,padding:"10px 18px",border:`2px solid ${activePlayer===key?color:T.border2}`,borderRadius:4,background:activePlayer===key?`${color}22`:"transparent",cursor:"pointer",transition:"all .2s"}}>
+                    <div style={{width:28,height:28,borderRadius:"50%",background:color,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#fff"}}>{name.slice(0,1)}</span>
+                    </div>
+                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:activePlayer===key?color:T.textMuted,letterSpacing:2}}>{name}</div>
+                    {activePlayer===key&&<span style={{fontSize:9,color:color,letterSpacing:1}}>● YOU</span>}
+                  </button>
+                ))}
+              </div>
+              <div style={{fontSize:11,color:T.textMuted,marginTop:10}}>Your profile controls which theme is remembered on this device. Switching profiles switches themes.</div>
+            </div>
+
+            {/* THEME */}
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:6}}>🎨 COLOR THEME</div>
+              <div style={{fontSize:11,color:T.textMuted,marginBottom:16}}>Your theme saves to this device only — the other player sees their own choice.</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
+                {Object.entries(THEMES).map(([key,theme])=>{
+                  const active = themeKey === key;
+                  return (
+                    <button key={key} onClick={()=>selectTheme(key)}
+                      style={{padding:"14px 10px",border:`2px solid ${active?theme.gold:theme.border2}`,borderRadius:6,background:theme.bg,cursor:"pointer",transition:"all .2s",textAlign:"center",transform:active?"scale(1.03)":"scale(1)"}}>
+                      <div style={{fontSize:22,marginBottom:6}}>{theme.icon}</div>
+                      <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:theme.gold,letterSpacing:2}}>{theme.name}</div>
+                      <div style={{display:"flex",gap:4,justifyContent:"center",marginTop:8}}>
+                        <div style={{width:12,height:12,borderRadius:2,background:theme.bg,border:`1px solid ${theme.border2}`}}/>
+                        <div style={{width:12,height:12,borderRadius:2,background:theme.surface}}/>
+                        <div style={{width:12,height:12,borderRadius:2,background:theme.gold}}/>
+                      </div>
+                      {active&&<div style={{fontSize:9,color:theme.gold,marginTop:6,letterSpacing:1}}>● ACTIVE</div>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* PLAYER NAMES */}
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:14}}>✏ PLAYER NAMES</div>
+              <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
+                {[["p1","PLAYER 1"],["p2","PLAYER 2"]].map(([k,l])=>(
+                  <div key={k}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>{l} — CURRENTLY: {state[k+"Name"]}</label><input className="fi" placeholder={state[k+"Name"]} value={nameForm[k]} onChange={e=>setNameForm({...nameForm,[k]:e.target.value})}/></div>
+                ))}
+              </div>
+              <button className="bg" style={{padding:"10px 20px",fontSize:14,borderRadius:2}} onClick={saveNames}>SAVE NAMES</button>
+            </div>
+
+            {/* BALANCE ADJUSTMENT */}
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#6FA8DC",letterSpacing:3,marginBottom:6}}>⚖ BALANCE ADJUSTMENT</div>
+              <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Manual corrections to either stack. Logged with ADJ tag. Does not count as a bet.</div>
+              <button className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,borderColor:"#1A1A2A",color:"#6FA8DC"}} onClick={()=>setShowAdjust(true)}>OPEN ADJUSTMENT PANEL</button>
+            </div>
+
+            {/* IMPORT / EXPORT */}
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:6}}>📁 DATA</div>
+              <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Export your full bet history to CSV, or import from a previously exported file.</div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                <button className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,borderColor:"#1A2A1A",color:"#5AAF7A"}} onClick={()=>exportCSV(bets,state.p1Name,state.p2Name)}>↓ Export CSV</button>
+                <label className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,cursor:"pointer",display:"inline-block",border:`1px solid ${T.border2}`,color:T.textMuted}}>
+                  ↑ Import CSV<input type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
+                </label>
+              </div>
+            </div>
+
+            {/* DANGER ZONE */}
+            <div style={{background:T.surface,border:"1px solid #4A1A1A",borderLeft:"3px solid #C0392B",padding:"18px",borderRadius:3}}>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#C0392B",letterSpacing:3,marginBottom:6}}>⚠ DANGER ZONE</div>
+              <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Reset the season — clears all bets and resets both stacks to $100,000. This is permanent.</div>
+              <button className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,borderColor:"#4A1A1A",color:"#C0392B"}} onClick={()=>setShowResetConfirm(true)}>↺ RESET SEASON</button>
+            </div>
           </div>
         )}
       </div>
 
       {/* ═══ ADD / EDIT BET MODAL ═══ */}
       {showAddBet&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:"#0D0D0D",border:"1px solid #2A2A2A",borderTop:`2px solid ${editingBet?"#6FA8DC":"#D4A017"}`,borderRadius:4,width:"100%",maxWidth:560,maxHeight:"92vh",overflowY:"auto",padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:editingBet?"#6FA8DC":"#D4A017",letterSpacing:3,marginBottom:16}}>{editingBet?"✏ EDIT BET":"LOG NEW BET"}</div>
+        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
+          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${editingBet?"#6FA8DC":T.gold}`,borderRadius:4,width:"100%",maxWidth:560,maxHeight:"92vh",overflowY:"auto",padding:24}}>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:editingBet?"#6FA8DC":T.gold,letterSpacing:3,marginBottom:16}}>{editingBet?"✏ EDIT BET":"LOG NEW BET"}</div>
             {!editingBet&&(
-              <div style={{display:"flex",gap:0,marginBottom:16,background:"#111",borderRadius:3,padding:3}}>
+              <div style={{display:"flex",gap:0,marginBottom:16,background:T.surface2,borderRadius:3,padding:3}}>
                 {[["h2h","⚔️ HEAD-TO-HEAD"],["solo","🎯 SOLO BET"]].map(([m,l])=>(
-                  <button key={m} onClick={()=>setForm({...form,mode:m})} style={{flex:1,padding:"9px 6px",border:"none",borderRadius:2,cursor:"pointer",fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:2,transition:"all .2s",background:form.mode===m?(m==="h2h"?"#1A2A3A":"#1A2A1A"):"transparent",color:form.mode===m?(m==="h2h"?"#6FA8DC":"#6EC98A"):"#333",borderBottom:form.mode===m?`2px solid ${m==="h2h"?"#6FA8DC":"#6EC98A"}`:"2px solid transparent"}}>{l}</button>
+                  <button key={m} onClick={()=>setForm({...form,mode:m})} style={{flex:1,padding:"9px 6px",border:"none",borderRadius:2,cursor:"pointer",fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:2,transition:"all .2s",background:form.mode===m?(m==="h2h"?"#1A2A3A":"#1A2A1A"):"transparent",color:form.mode===m?(m==="h2h"?"#6FA8DC":"#6EC98A"):T.textMuted,borderBottom:form.mode===m?`2px solid ${m==="h2h"?"#6FA8DC":"#6EC98A"}`:"2px solid transparent"}}>{l}</button>
                 ))}
               </div>
             )}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>DATE</label><input type="date" className="fi" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></div>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>SPORT</label><select className="fi" value={form.sport} onChange={e=>setForm({...form,sport:e.target.value})}>{SPORTS.map(s=><option key={s}>{s}</option>)}</select></div>
-              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>BET TYPE</label>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>DATE</label><input type="date" className="fi" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></div>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>SPORT</label><select className="fi" value={form.sport} onChange={e=>setForm({...form,sport:e.target.value})}>{SPORTS.map(s=><option key={s}>{s}</option>)}</select></div>
+              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>BET TYPE</label>
                 <select className="fi" value={form.betType} onChange={e=>{const bt=BET_TYPES.find(b=>b.label===e.target.value);setForm({...form,betType:e.target.value,payout:parseFloat(bt?.multiplier)||1});}}>
                   {BET_TYPES.map(b=><option key={b.label}>{b.label} — {b.multiplier}</option>)}
                 </select>
               </div>
               {form.mode==="solo"&&!editingBet&&(
-                <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>WHO IS PLACING THIS BET?</label>
+                <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>WHO IS PLACING THIS BET?</label>
                   <div style={{display:"flex",gap:8}}>
                     {[["p1",state.p1Name],["p2",state.p2Name]].map(([v,n])=>(
-                      <button key={v} onClick={()=>setForm({...form,soloPlayer:v})} style={{flex:1,padding:"8px",border:`1px solid ${form.soloPlayer===v?"#6EC98A":"#2A2A2A"}`,background:form.soloPlayer===v?"#1A2A1A":"transparent",color:form.soloPlayer===v?"#6EC98A":"#444",fontFamily:"'Bebas Neue',cursive",fontSize:13,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{n}</button>
+                      <button key={v} onClick={()=>setForm({...form,soloPlayer:v})} style={{flex:1,padding:"8px",border:`1px solid ${form.soloPlayer===v?"#6EC98A":T.border2}`,background:form.soloPlayer===v?"#1A2A1A":"transparent",color:form.soloPlayer===v?"#6EC98A":T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:13,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{n}</button>
                     ))}
                   </div>
                 </div>
               )}
-              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>BET DESCRIPTION *</label><input className="fi" placeholder="e.g. Lakers vs Celtics" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></div>
+              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>BET DESCRIPTION *</label><input className="fi" placeholder="e.g. Lakers vs Celtics" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></div>
               {form.mode==="h2h"?(
                 <>
                   <div><label style={{fontSize:9,color:p1Color.highlight,letterSpacing:2,display:"block",marginBottom:3}}>{state.p1Name.toUpperCase()} PICK</label><input className="fi" placeholder="Their pick" value={form.p1Pick} onChange={e=>setForm({...form,p1Pick:e.target.value})}/></div>
@@ -872,26 +1092,26 @@ export default function App() {
               ):(
                 <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:"#6EC98A",letterSpacing:2,display:"block",marginBottom:3}}>YOUR PICK / SELECTION</label><input className="fi" placeholder="e.g. Lakers ML, Over 225.5" value={form.p1Pick} onChange={e=>setForm({...form,p1Pick:e.target.value})}/></div>
               )}
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>WAGER AMOUNT (MM) *</label><input className="fi" placeholder="e.g. 5000" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})}/></div>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>PAYOUT MULTIPLIER</label><input className="fi" type="number" step="0.5" min="1" value={form.payout} onChange={e=>setForm({...form,payout:e.target.value})}/></div>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>WAGER AMOUNT (MM) *</label><input className="fi" placeholder="e.g. 5000" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})}/></div>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>PAYOUT MULTIPLIER</label><input className="fi" type="number" step="0.5" min="1" value={form.payout} onChange={e=>setForm({...form,payout:e.target.value})}/></div>
               {!editingBet&&(
                 <div style={{gridColumn:"1/-1"}}>
-                  <label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:5}}>RESULT</label>
+                  <label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>RESULT</label>
                   {form.mode==="solo"?(
                     <div style={{display:"flex",gap:8}}>
-                      {["Pending","Win","Loss","Push"].map(r=>{const col=r==="Win"?"#5AAF7A":r==="Loss"?"#E06C75":r==="Push"?"#666":"#D4A017";const active=form.soloResult===r;return<button key={r} onClick={()=>setForm({...form,soloResult:r})} style={{flex:1,padding:"7px 4px",border:`1px solid ${active?col:"#2A2A2A"}`,background:active?"#111":"transparent",color:active?col:"#3A3A3A",fontFamily:"'Bebas Neue',cursive",fontSize:12,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{r}</button>;})}
+                      {["Pending","Win","Loss","Push"].map(r=>{const col=r==="Win"?"#5AAF7A":r==="Loss"?"#E06C75":r==="Push"?"#666":T.gold;const active=form.soloResult===r;return<button key={r} onClick={()=>setForm({...form,soloResult:r})} style={{flex:1,padding:"7px 4px",border:`1px solid ${active?col:T.border2}`,background:active?T.surface2:"transparent",color:active?col:T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:12,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{r}</button>;})}
                     </div>
                   ):(
                     <div style={{display:"flex",gap:8}}>
-                      {[["Pending","#D4A017","Pending","none"],[`${state.p1Name.slice(0,8)} W`,"#5AAF7A","Settled","p1"],[`${state.p2Name.slice(0,8)} W`,"#5AAF7A","Settled","p2"],["Push","#666","Settled","none"]].map(([label,col,res,win])=>{
+                      {[["Pending",T.gold,"Pending","none"],[`${state.p1Name.slice(0,8)} W`,"#5AAF7A","Settled","p1"],[`${state.p2Name.slice(0,8)} W`,"#5AAF7A","Settled","p2"],["Push","#666","Settled","none"]].map(([label,col,res,win])=>{
                         const active=(res==="Pending"&&form.result==="Pending")||(res==="Settled"&&form.result==="Settled"&&form.winner===win&&!(win==="none"&&label!=="Push"));
-                        return<button key={label} onClick={()=>setForm({...form,result:res,winner:win})} style={{flex:1,padding:"7px 3px",border:`1px solid ${active?col:"#2A2A2A"}`,background:active?"#111":"transparent",color:active?col:"#3A3A3A",fontFamily:"'Bebas Neue',cursive",fontSize:11,letterSpacing:1,cursor:"pointer",borderRadius:2,whiteSpace:"nowrap"}}>{label}</button>;
+                        return<button key={label} onClick={()=>setForm({...form,result:res,winner:win})} style={{flex:1,padding:"7px 3px",border:`1px solid ${active?col:T.border2}`,background:active?T.surface2:"transparent",color:active?col:T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:11,letterSpacing:1,cursor:"pointer",borderRadius:2,whiteSpace:"nowrap"}}>{label}</button>;
                       })}
                     </div>
                   )}
                 </div>
               )}
-              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>NOTES (optional)</label><input className="fi" placeholder="Any context..." value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div>
+              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>NOTES (optional)</label><input className="fi" placeholder="Any context..." value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div>
             </div>
             <div style={{display:"flex",gap:10,marginTop:16}}>
               <button className="bg" style={{flex:1,padding:"11px",fontSize:16,borderRadius:2}} onClick={saveBet}>{editingBet?"SAVE CHANGES":"LOG BET"}</button>
@@ -903,26 +1123,26 @@ export default function App() {
 
       {/* ═══ WWE PLE MODAL ═══ */}
       {showPLE&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:"#0D0D0D",border:"1px solid #3A1A1A",borderTop:"2px solid #9b1c1c",borderRadius:4,width:"100%",maxWidth:700,maxHeight:"92vh",overflowY:"auto",padding:24}}>
+        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
+          <div style={{background:T.modalBg,border:"1px solid #3A1A1A",borderTop:"2px solid #9b1c1c",borderRadius:4,width:"100%",maxWidth:700,maxHeight:"92vh",overflowY:"auto",padding:24}}>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#F08080",letterSpacing:3,marginBottom:4}}>🤼 WWE PLE CARD BUILDER</div>
-            <div style={{fontSize:11,color:"#444",marginBottom:16,lineHeight:1.6}}>Each player enters picks separately — hidden until both lock in. Stakes auto-scale by match count.</div>
+            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Each player enters picks separately — hidden until both lock in. Stakes auto-scale by match count.</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:10,marginBottom:14}}>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>EVENT NAME *</label><input className="fi" placeholder="e.g. WrestleMania 41" value={pleForm.eventName} onChange={e=>setPleForm({...pleForm,eventName:e.target.value})}/></div>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>DATE</label><input type="date" className="fi" value={pleForm.date} onChange={e=>setPleForm({...pleForm,date:e.target.value})}/></div>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>MATCHES</label><select className="fi" style={{width:80}} value={pleForm.matchCount} onChange={e=>updatePleMatchCount(e.target.value)}>{[4,5,6,7,8].map(n=><option key={n} value={n}>{n}</option>)}</select></div>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>EVENT NAME *</label><input className="fi" placeholder="e.g. WrestleMania 41" value={pleForm.eventName} onChange={e=>setPleForm({...pleForm,eventName:e.target.value})}/></div>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>DATE</label><input type="date" className="fi" value={pleForm.date} onChange={e=>setPleForm({...pleForm,date:e.target.value})}/></div>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>MATCHES</label><select className="fi" style={{width:80}} value={pleForm.matchCount} onChange={e=>updatePleMatchCount(e.target.value)}>{[4,5,6,7,8].map(n=><option key={n} value={n}>{n}</option>)}</select></div>
             </div>
-            <div style={{background:"#111",border:"1px solid #1A1A1A",padding:"8px 12px",borderRadius:2,marginBottom:14}}>
-              <div style={{fontSize:9,color:"#444",letterSpacing:2,marginBottom:6}}>STAKE TIERS FOR {pleForm.matchCount} MATCHES</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{pleTiers.map((t,i)=><div key={t} style={{background:"#0A0A0A",border:"1px solid #2A2A2A",padding:"3px 8px",borderRadius:2,textAlign:"center"}}><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:13,color:"#D4A017"}}>{fmtShort(t)}</div><div style={{fontSize:9,color:"#333"}}>M{i+1}</div></div>)}</div>
+            <div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"8px 12px",borderRadius:2,marginBottom:14}}>
+              <div style={{fontSize:9,color:T.textMuted,letterSpacing:2,marginBottom:6}}>STAKE TIERS FOR {pleForm.matchCount} MATCHES</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{pleTiers.map((t,i)=><div key={t} style={{background:T.surface,border:`1px solid ${T.border}`,padding:"3px 8px",borderRadius:2,textAlign:"center"}}><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:13,color:T.gold}}>{fmtShort(t)}</div><div style={{fontSize:9,color:T.textMuted}}>M{i+1}</div></div>)}</div>
             </div>
-            <div style={{display:"flex",gap:0,marginBottom:14,background:"#111",borderRadius:3,padding:3}}>
+            <div style={{display:"flex",gap:0,marginBottom:14,background:T.surface2,borderRadius:3,padding:3}}>
               {[["p1",state.p1Name],["p2",state.p2Name]].map(([pl,name])=>{
                 const locked=pleForm.matches.every(m=>m[`${pl}Locked`]);
-                return<button key={pl} onClick={()=>setPleEntryPlayer(pl)} style={{flex:1,padding:"9px 6px",border:"none",borderRadius:2,cursor:"pointer",fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:2,transition:"all .2s",background:pleEntryPlayer===pl?(pl==="p1"?"#1A2A3A":"#2A1A1A"):"transparent",color:pleEntryPlayer===pl?(pl==="p1"?p1Color.highlight:p2Color.highlight):"#333",borderBottom:pleEntryPlayer===pl?`2px solid ${pl==="p1"?p1Color.highlight:p2Color.highlight}`:"2px solid transparent"}}>{name} {locked?"✓ LOCKED":"— ENTERING"}</button>;
+                return<button key={pl} onClick={()=>setPleEntryPlayer(pl)} style={{flex:1,padding:"9px 6px",border:"none",borderRadius:2,cursor:"pointer",fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:2,transition:"all .2s",background:pleEntryPlayer===pl?(pl==="p1"?"#1A2A3A":"#2A1A1A"):"transparent",color:pleEntryPlayer===pl?(pl==="p1"?p1Color.highlight:p2Color.highlight):T.textMuted,borderBottom:pleEntryPlayer===pl?`2px solid ${pl==="p1"?p1Color.highlight:p2Color.highlight}`:"2px solid transparent"}}>{name} {locked?"✓ LOCKED":"— ENTERING"}</button>;
               })}
             </div>
-            <div style={{background:"#0A0A0A",border:"1px solid #1A1A1A",padding:"7px 12px",borderRadius:2,marginBottom:12,fontSize:11,color:"#444"}}>
+            <div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"7px 12px",borderRadius:2,marginBottom:12,fontSize:11,color:T.textMuted}}>
               {pleEntryPlayer==="p1"?`${state.p1Name} is entering picks. ${state.p2Name}'s picks are hidden until locked.`:`${state.p2Name} is entering picks. ${state.p1Name}'s picks are hidden until locked.`}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -931,16 +1151,16 @@ export default function App() {
                 const isLocked=m[`${pl}Locked`];
                 const tier=pleTiers[i];
                 return(
-                  <div key={i} style={{background:"#111",border:`1px solid ${isLocked?"#1A2A1A":"#1A1A1A"}`,padding:"11px 13px",borderRadius:3,opacity:isLocked?0.7:1}}>
+                  <div key={i} style={{background:T.surface,border:`1px solid ${isLocked?"#1A2A1A":T.border}`,padding:"11px 13px",borderRadius:3,opacity:isLocked?0.7:1}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:"#9b1c1c",letterSpacing:2}}>MATCH {i+1}</span>
-                        <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:"#D4A017"}}>{fmtShort(tier)}</span>
+                        <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:T.gold}}>{fmtShort(tier)}</span>
                         {isLocked&&<span style={{fontSize:9,color:"#5AAF7A",background:"#0A2A1A",padding:"2px 6px",borderRadius:2}}>LOCKED</span>}
                       </div>
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
-                      <div><label style={{fontSize:9,color:"#444",letterSpacing:1,display:"block",marginBottom:3}}>MATCH / STIPULATION</label><input className="fi" placeholder="e.g. Cody Rhodes vs Roman Reigns" value={m.match} disabled={isLocked} onChange={e=>{const ms=[...pleForm.matches];ms[i]={...ms[i],match:e.target.value};setPleForm({...pleForm,matches:ms});}}/></div>
+                      <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:1,display:"block",marginBottom:3}}>MATCH / STIPULATION</label><input className="fi" placeholder="e.g. Cody Rhodes vs Roman Reigns" value={m.match} disabled={isLocked} onChange={e=>{const ms=[...pleForm.matches];ms[i]={...ms[i],match:e.target.value};setPleForm({...pleForm,matches:ms});}}/></div>
                       <div><label style={{fontSize:9,color:pl==="p1"?p1Color.highlight:p2Color.highlight,letterSpacing:1,display:"block",marginBottom:3}}>YOUR PICK</label><input className="fi" placeholder="Who wins?" value={m[`${pl}Pick`]} disabled={isLocked} onChange={e=>{const ms=[...pleForm.matches];ms[i]={...ms[i],[`${pl}Pick`]:e.target.value};setPleForm({...pleForm,matches:ms});}}/></div>
                     </div>
                   </div>
@@ -956,30 +1176,30 @@ export default function App() {
               {bothLocked&&<button className="bg" style={{flex:1,padding:"11px",fontSize:15,borderRadius:2}} onClick={addPLECard}>✓ SUBMIT PLE CARD</button>}
               <button className="gh" style={{padding:"11px 14px",borderRadius:2}} onClick={()=>{setPleForm(blankPLE);setPleEntryPlayer("p1");setShowPLE(false);}}>CANCEL</button>
             </div>
-            {!bothLocked&&<div style={{fontSize:11,color:"#444",marginTop:8,textAlign:"center"}}>Both players must lock in before the card can be submitted.</div>}
+            {!bothLocked&&<div style={{fontSize:11,color:T.textMuted,marginTop:8,textAlign:"center"}}>Both players must lock in before the card can be submitted.</div>}
           </div>
         </div>
       )}
 
       {/* ═══ LOG SPECIAL MODE MODAL ═══ */}
       {showLogMode&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:"#0D0D0D",border:"1px solid #2A2A2A",borderTop:"2px solid #D4A017",borderRadius:4,width:"100%",maxWidth:420,padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#D4A017",letterSpacing:3,marginBottom:16}}>⚡ LOG MODE INVOCATION</div>
+        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
+          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${T.gold}`,borderRadius:4,width:"100%",maxWidth:420,padding:24}}>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:T.gold,letterSpacing:3,marginBottom:16}}>⚡ LOG MODE INVOCATION</div>
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>SPECIAL MODE</label>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>SPECIAL MODE</label>
                 <select className="fi" value={modeLogForm.modeKey} onChange={e=>setModeLogForm({...modeLogForm,modeKey:e.target.value})}>
                   {SPECIAL_MODES.filter(m=>m.trackPer!=="none").map(m=><option key={m.key} value={m.key}>{m.icon} {m.name}</option>)}
                 </select>
               </div>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:5}}>INVOKED BY</label>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>INVOKED BY</label>
                 <div style={{display:"flex",gap:8}}>
                   {[["p1",state.p1Name],["p2",state.p2Name]].map(([v,n])=>(
-                    <button key={v} onClick={()=>setModeLogForm({...modeLogForm,player:v})} style={{flex:1,padding:"8px",border:`1px solid ${modeLogForm.player===v?"#D4A017":"#2A2A2A"}`,background:modeLogForm.player===v?"#1A1A0A":"transparent",color:modeLogForm.player===v?"#D4A017":"#444",fontFamily:"'Bebas Neue',cursive",fontSize:13,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{n}</button>
+                    <button key={v} onClick={()=>setModeLogForm({...modeLogForm,player:v})} style={{flex:1,padding:"8px",border:`1px solid ${modeLogForm.player===v?T.gold:T.border2}`,background:modeLogForm.player===v?T.surface2:"transparent",color:modeLogForm.player===v?T.gold:T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:13,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{n}</button>
                   ))}
                 </div>
               </div>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>NOTE (optional)</label><input className="fi" placeholder="e.g. Invoked before WrestleMania week" value={modeLogForm.note} onChange={e=>setModeLogForm({...modeLogForm,note:e.target.value})}/></div>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>NOTE (optional)</label><input className="fi" placeholder="e.g. Invoked before WrestleMania week" value={modeLogForm.note} onChange={e=>setModeLogForm({...modeLogForm,note:e.target.value})}/></div>
             </div>
             <div style={{display:"flex",gap:10,marginTop:16}}>
               <button className="bg" style={{flex:1,padding:"11px",fontSize:16,borderRadius:2}} onClick={logModeInvocation}>LOG IT</button>
@@ -991,32 +1211,32 @@ export default function App() {
 
       {/* ═══ ADJUSTMENT MODAL ═══ */}
       {showAdjust&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:"#0D0D0D",border:"1px solid #1A1A2A",borderTop:"2px solid #6FA8DC",borderRadius:4,width:"100%",maxWidth:420,padding:24}}>
+        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
+          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:"2px solid #6FA8DC",borderRadius:4,width:"100%",maxWidth:420,padding:24}}>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#6FA8DC",letterSpacing:3,marginBottom:4}}>⚖ BALANCE ADJUSTMENT</div>
-            <div style={{fontSize:11,color:"#444",marginBottom:16,lineHeight:1.6}}>Manual correction or carry-over. Logged with ADJ tag. Does not count as a bet.</div>
+            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Manual correction or carry-over. Logged with ADJ tag. Does not count as a bet.</div>
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:5}}>ADJUST WHICH PLAYER?</label>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>ADJUST WHICH PLAYER?</label>
                 <div style={{display:"flex",gap:8}}>
                   {[["p1",state.p1Name],["p2",state.p2Name]].map(([v,n])=>(
-                    <button key={v} onClick={()=>setAdjustForm({...adjustForm,target:v})} style={{flex:1,padding:"9px",border:`1px solid ${adjustForm.target===v?"#6FA8DC":"#2A2A2A"}`,background:adjustForm.target===v?"#1A1A2A":"transparent",color:adjustForm.target===v?"#6FA8DC":"#444",fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{n}</button>
+                    <button key={v} onClick={()=>setAdjustForm({...adjustForm,target:v})} style={{flex:1,padding:"9px",border:`1px solid ${adjustForm.target===v?"#6FA8DC":T.border2}`,background:adjustForm.target===v?"#1A1A2A":"transparent",color:adjustForm.target===v?"#6FA8DC":T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{n}</button>
                   ))}
                 </div>
               </div>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:5}}>ADD OR SUBTRACT?</label>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>ADD OR SUBTRACT?</label>
                 <div style={{display:"flex",gap:8}}>
                   {[["add","+ ADD","#5AAF7A"],["subtract","− SUBTRACT","#E06C75"]].map(([v,l,col])=>(
-                    <button key={v} onClick={()=>setAdjustForm({...adjustForm,direction:v})} style={{flex:1,padding:"9px",border:`1px solid ${adjustForm.direction===v?col:"#2A2A2A"}`,background:adjustForm.direction===v?"#0A0A0A":"transparent",color:adjustForm.direction===v?col:"#444",fontFamily:"'Bebas Neue',cursive",fontSize:16,letterSpacing:2,cursor:"pointer",borderRadius:2}}>{l}</button>
+                    <button key={v} onClick={()=>setAdjustForm({...adjustForm,direction:v})} style={{flex:1,padding:"9px",border:`1px solid ${adjustForm.direction===v?col:T.border2}`,background:adjustForm.direction===v?T.surface2:"transparent",color:adjustForm.direction===v?col:T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:16,letterSpacing:2,cursor:"pointer",borderRadius:2}}>{l}</button>
                   ))}
                 </div>
               </div>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>AMOUNT *</label><input className="fi" placeholder="e.g. 50000" value={adjustForm.amount} onChange={e=>setAdjustForm({...adjustForm,amount:e.target.value})}/></div>
-              <div><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>REASON (optional)</label><input className="fi" placeholder="e.g. Carry-over from previous season" value={adjustForm.reason} onChange={e=>setAdjustForm({...adjustForm,reason:e.target.value})}/></div>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>AMOUNT *</label><input className="fi" placeholder="e.g. 50000" value={adjustForm.amount} onChange={e=>setAdjustForm({...adjustForm,amount:e.target.value})}/></div>
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>REASON (optional)</label><input className="fi" placeholder="e.g. Carry-over from previous season" value={adjustForm.reason} onChange={e=>setAdjustForm({...adjustForm,reason:e.target.value})}/></div>
               {adjustForm.amount&&(
-                <div style={{background:"#111",border:"1px solid #1A1A1A",padding:"9px 13px",borderRadius:2,fontSize:12,color:"#666"}}>
+                <div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"9px 13px",borderRadius:2,fontSize:12,color:T.textMuted}}>
                   <span style={{color:adjustForm.direction==="add"?"#5AAF7A":"#E06C75"}}>{adjustForm.direction==="add"?"+":"-"}{fmt(parseInt(String(adjustForm.amount).replace(/,/g,""))||0)}</span>
                   {" "}to {adjustForm.target==="p1"?state.p1Name:state.p2Name}'s stack →{" "}
-                  <span style={{color:"#D4A017",fontFamily:"'Bebas Neue',cursive",fontSize:15}}>{fmt((adjustForm.target==="p1"?state.p1Balance:state.p2Balance)+(adjustForm.direction==="add"?1:-1)*(parseInt(String(adjustForm.amount).replace(/,/g,""))||0))}</span>
+                  <span style={{color:T.gold,fontFamily:"'Bebas Neue',cursive",fontSize:15}}>{fmt((adjustForm.target==="p1"?state.p1Balance:state.p2Balance)+(adjustForm.direction==="add"?1:-1)*(parseInt(String(adjustForm.amount).replace(/,/g,""))||0))}</span>
                 </div>
               )}
             </div>
@@ -1030,10 +1250,10 @@ export default function App() {
 
       {/* ═══ COLOR PICKER MODAL ═══ */}
       {showColorPicker&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:"#0D0D0D",border:"1px solid #2A2A2A",borderTop:"2px solid #D4A017",borderRadius:4,width:"100%",maxWidth:380,padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"#D4A017",letterSpacing:3,marginBottom:4}}>🎨 CHOOSE COLOR</div>
-            <div style={{fontSize:11,color:"#444",marginBottom:16}}>Pick a highlight color for {showColorPicker==="p1"?state.p1Name:state.p2Name}. Affects balance card, picks column, and PLE entries.</div>
+        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
+          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${T.gold}`,borderRadius:4,width:"100%",maxWidth:380,padding:24}}>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:T.gold,letterSpacing:3,marginBottom:4}}>🎨 CHOOSE COLOR</div>
+            <div style={{fontSize:11,color:T.textMuted,marginBottom:16}}>Pick a highlight color for {showColorPicker==="p1"?state.p1Name:state.p2Name}.</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:16}}>
               {PLAYER_COLORS.map(c=>{
                 const current=showColorPicker==="p1"?p1Color:p2Color;
@@ -1051,30 +1271,12 @@ export default function App() {
         </div>
       )}
 
-      {/* ═══ EDIT NAMES ═══ */}
-      {editingNames&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:"#0D0D0D",border:"1px solid #2A2A2A",borderTop:"2px solid #D4A017",borderRadius:4,width:"100%",maxWidth:380,padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"#D4A017",letterSpacing:3,marginBottom:16}}>PLAYER NAMES</div>
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {[["p1","PLAYER 1"],["p2","PLAYER 2"]].map(([k,l])=>(
-                <div key={k}><label style={{fontSize:9,color:"#444",letterSpacing:2,display:"block",marginBottom:3}}>{l}</label><input className="fi" placeholder={state[k+"Name"]} value={nameForm[k]} onChange={e=>setNameForm({...nameForm,[k]:e.target.value})}/></div>
-              ))}
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:16}}>
-              <button className="bg" style={{flex:1,padding:"10px",fontSize:14,borderRadius:2}} onClick={saveNames}>SAVE</button>
-              <button className="gh" style={{padding:"10px 14px",borderRadius:2}} onClick={()=>setEditingNames(false)}>CANCEL</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ═══ RESET CONFIRM ═══ */}
       {showResetConfirm&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:"#0D0D0D",border:"1px solid #4A1A1A",borderTop:"2px solid #C0392B",borderRadius:4,width:"100%",maxWidth:340,padding:24,textAlign:"center"}}>
+        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
+          <div style={{background:T.modalBg,border:"1px solid #4A1A1A",borderTop:"2px solid #C0392B",borderRadius:4,width:"100%",maxWidth:340,padding:24,textAlign:"center"}}>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#C0392B",letterSpacing:3,marginBottom:8}}>RESET SEASON?</div>
-            <div style={{fontSize:12,color:"#444",marginBottom:20,lineHeight:1.6}}>Clears all bets and resets both stacks to $100,000. Permanent.</div>
+            <div style={{fontSize:12,color:T.textMuted,marginBottom:20,lineHeight:1.6}}>Clears all bets and resets both stacks to $100,000. Permanent.</div>
             <div style={{display:"flex",gap:10,justifyContent:"center"}}>
               <button style={{background:"#C0392B",border:"none",color:"white",fontFamily:"'Bebas Neue',cursive",fontSize:16,letterSpacing:2,padding:"10px 22px",borderRadius:2,cursor:"pointer"}} onClick={resetSeason}>RESET</button>
               <button className="gh" style={{padding:"10px 20px",borderRadius:2,fontSize:13}} onClick={()=>setShowResetConfirm(false)}>CANCEL</button>
