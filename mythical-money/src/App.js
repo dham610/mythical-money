@@ -105,24 +105,46 @@ function parseCSV(text) {
   const lines = text.trim().split("\n");
   if (lines.length < 2) return [];
   return lines.slice(1).map((line, i) => {
-    const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || [];
+    const vals = line.match(/".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$/g) || [];
     const clean = vals.map(v => v.replace(/^"|"$/g, "").replace(/""/g, '"'));
+    const mode = clean[4] || "h2h";
+    const notes = clean[13] || "";
+    const rawP1Pick = clean[6] || "";
+    const rawP2Pick = clean[7] || "";
+
+    // Derive soloPlayer: check Notes for "Solo: CG/GB", fallback to which pick column has data
+    let soloPlayer = null;
+    if (mode === "solo") {
+      if (notes.includes("Solo: CG") || notes.includes("Solo: p1")) soloPlayer = "p1";
+      else if (notes.includes("Solo: GB") || notes.includes("Solo: p2")) soloPlayer = "p2";
+      else if (rawP1Pick && !rawP2Pick) soloPlayer = "p1";
+      else if (rawP2Pick && !rawP1Pick) soloPlayer = "p2";
+      else soloPlayer = "p1"; // fallback
+    }
+
+    // For solo bets, normalize pick into p1Pick (display always reads p1Pick for solo)
+    const p1Pick = mode === "solo"
+      ? (soloPlayer === "p1" ? rawP1Pick : rawP2Pick)
+      : rawP1Pick;
+    const p2Pick = mode === "solo" ? "" : rawP2Pick;
+
     return {
       id: Date.now() + i,
       date: clean[0] || new Date().toISOString().slice(0,10),
       timestamp: null,
       sport: clean[2] || "Other",
       betType: clean[3] || "Straight Win/Loss",
-      mode: clean[4] || "h2h",
+      mode,
+      soloPlayer,
       description: clean[5] || "",
-      p1Pick: clean[6] || "", p2Pick: clean[7] || "",
+      p1Pick, p2Pick,
       amount: parseInt(clean[8]) || 0,
       payout: parseFloat(clean[9]) || 1,
       result: clean[10] || "Pending",
       winner: "none",
       p1BalAfter: parseInt(clean[11]) || STARTING_STACK,
       p2BalAfter: parseInt(clean[12]) || STARTING_STACK,
-      notes: clean[13] || "",
+      notes,
     };
   }).filter(b => b.description);
 }
