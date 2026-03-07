@@ -614,7 +614,6 @@ export default function App() {
 
   const modeUsageCount = (key, player) => modeLog.filter(m=>m.key===key&&(player?m.player===player:true)).length;
 
-  const p1Lead=state.p1Balance>state.p2Balance;
   const tied=state.p1Balance===state.p2Balance;
   const sportColors={NBA:"#1d4ed8",WWE:"#9b1c1c","MMA/Boxing":"#6d28d9",NFL:"#166534",MLB:"#0e4d8a",WNBA:"#c2410c",Other:"#92400e"};
 
