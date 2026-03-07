@@ -695,12 +695,12 @@ export default function App() {
       {/* HEADER */}
       <div style={{borderBottom:`1px solid ${T.border}`,padding:"0 20px"}}>
         <div style={{maxWidth:1100,margin:"0 auto"}}>
-          <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"flex-end",padding:"14px 0 0",minHeight:54}}>
-            <div style={{position:"absolute",left:"50%",transform:"translateX(-50%)",textAlign:"center",pointerEvents:"none"}}>
+          <div style={{padding:"14px 0 0"}}>
+            <div style={{textAlign:"center",marginBottom:8}}>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,letterSpacing:3,lineHeight:1,background:"linear-gradient(180deg,#FFF5C0 0%,#F5C842 20%,#D4A017 45%,#A87010 60%,#D4A017 75%,#F5C842 90%,#C8860A 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>MYTHICAL MONEY</div>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:3,marginTop:2}}>SEASON {state.season} &middot; RESETS AFTER NBA FINALS</div>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,flexWrap:"wrap"}}>
               {saveStatus&&<span style={{fontSize:10,color:saveStatus==="saved"?"#5AAF7A":saveStatus==="error"?"#E06C75":T.gold,letterSpacing:1}}>{saveStatus==="saving"?"SAVING...":saveStatus==="saved"?"✓ SYNCED":"⚠ ERROR"}</span>}
               <button className="gh" style={{padding:"5px 10px",fontSize:11,borderRadius:2,borderColor:"#4A1A1A",color:"#C0392B"}} onClick={()=>setShowResetConfirm(true)}>↺ Reset</button>
               <div style={{padding:"5px 10px",fontSize:11,borderRadius:2,border:`1px solid ${T.border2}`,color:T.textMuted,display:"flex",alignItems:"center",gap:5}}>
