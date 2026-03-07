@@ -634,7 +634,7 @@ export default function App() {
                             {bet.p2BalAfter!=null?fmt(bet.p2BalAfter):"—"}
                           </td>
                           <td style={{padding:"8px 6px"}}>
-                            <div style={{display:"flex",gap:4"}}>
+                            <div style={{display:"flex",gap:4}}>
                               {canEdit&&<button onClick={()=>openEditBet(bet)} style={{background:"transparent",border:"none",color:"#2A2A2A",cursor:"pointer",fontSize:11,transition:"color .15s"}} onMouseEnter={e=>e.target.style.color="#D4A017"} onMouseLeave={e=>e.target.style.color="#2A2A2A"}>✏</button>}
                               <button onClick={()=>deleteBet(bet.id)} style={{background:"transparent",border:"none",color:"#222",cursor:"pointer",fontSize:12,transition:"color .15s"}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color="#222"}>✕</button>
                             </div>
