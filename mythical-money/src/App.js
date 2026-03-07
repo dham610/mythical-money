@@ -211,7 +211,7 @@ function recalcBalances(bets) {
   let p1 = STARTING_STACK, p2 = STARTING_STACK;
   [...bets].reverse().forEach((b) => {
     if (b.result === "Pending") return;
-    if (b.isAdjustment) { if (b.adjustTarget==="p1") p1+=b.adjustAmount; else p2+=b.adjustAmount; return; }
+    if (b.isAdjustment || b.isBonus) { if (b.adjustTarget==="p1") p1+=b.adjustAmount; else p2+=b.adjustAmount; return; }
     if (b.mode==="solo") {
       if (b.result==="Win") { if(b.soloPlayer==="p1") p1+=b.amount*(b.payout||1); else p2+=b.amount*(b.payout||1); }
       else if(b.result==="Loss") { if(b.soloPlayer==="p1") p1-=b.amount; else p2-=b.amount; }
@@ -285,7 +285,7 @@ function parseCSV(text) {
 }
 
 // PROFILE SELECTOR SCREEN
-function ProfileSelector({ p1Name, p2Name, onSelect }) {
+function ProfileSelector({ p1Name, p2Name, p1Color, p2Color, onSelect }) {
   const t = THEMES.obsidian;
   return (
     <div style={{background:t.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Georgia,serif"}}>
@@ -294,7 +294,7 @@ function ProfileSelector({ p1Name, p2Name, onSelect }) {
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:42,background:"linear-gradient(135deg,#F5C842,#D4A017)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:4,marginBottom:6}}>MYTHICAL MONEY</div>
         <div style={{fontSize:11,color:"#444",letterSpacing:4,marginBottom:48}}>WHO ARE YOU?</div>
         <div style={{display:"flex",gap:20,justifyContent:"center"}}>
-          {[["p1",p1Name,"#1d4ed8"],["p2",p2Name,"#E06C75"]].map(([key,name,color])=>(
+          {[["p1",p1Name,p1Color.highlight],["p2",p2Name,p2Color.highlight]].map(([key,name,color])=>(
             <button key={key} onClick={()=>onSelect(key)}
               style={{background:"#0E0E0E",border:`2px solid ${color}`,borderRadius:6,padding:"32px 48px",cursor:"pointer",transition:"all .2s",minWidth:160}}
               onMouseEnter={e=>{e.currentTarget.style.background="#1A1A1A";e.currentTarget.style.transform="translateY(-3px)";}}
@@ -576,13 +576,13 @@ export default function App() {
   const p2Color = state.p2Color || { highlight:"#E06C75", font:"#080808" };
 
   const filteredBets = bets.filter((b) => {
-    if(b.isAdjustment) return filterMode==="All"||filterMode==="Adjustments";
+    if(b.isAdjustment||b.isBonus) return filterMode==="All"||filterMode==="Adjustments";
     if(filterSport!=="All"&&b.sport!==filterSport) return false;
     if(filterResult==="Pending"&&b.result!=="Pending") return false;
     if(filterResult==="Settled"&&b.result==="Pending") return false;
     if(filterMode==="H2H"&&b.mode!=="h2h") return false;
     if(filterMode==="Solo"&&b.mode!=="solo") return false;
-    if(filterMode==="Adjustments"&&!b.isAdjustment) return false;
+    if(filterMode==="Adjustments"&&!b.isAdjustment&&!b.isBonus) return false;
     return true;
   });
 
@@ -600,16 +600,16 @@ export default function App() {
 
   const h2hSettled=bets.filter(b=>b.mode==="h2h"&&b.result!=="Pending"&&b.result!=="Push");
   const stats={
-    total:bets.filter(b=>!b.isAdjustment).length,
+    total:bets.filter(b=>!b.isAdjustment&&!b.isBonus).length,
     pending:bets.filter(b=>b.result==="Pending").length,
-    settled:bets.filter(b=>b.result!=="Pending"&&!b.isAdjustment).length,
+    settled:bets.filter(b=>b.result!=="Pending"&&!b.isAdjustment&&!b.isBonus).length,
     p1H2hW:bets.filter(b=>b.winner==="p1").length,
     p2H2hW:bets.filter(b=>b.winner==="p2").length,
     p1SW:bets.filter(b=>b.mode==="solo"&&b.soloPlayer==="p1"&&b.result==="Win").length,
     p2SW:bets.filter(b=>b.mode==="solo"&&b.soloPlayer==="p2"&&b.result==="Win").length,
     p1SL:bets.filter(b=>b.mode==="solo"&&b.soloPlayer==="p1"&&b.result==="Loss").length,
     p2SL:bets.filter(b=>b.mode==="solo"&&b.soloPlayer==="p2"&&b.result==="Loss").length,
-    totalWagered:bets.filter(b=>!b.isAdjustment).reduce((s,b)=>s+(b.amount||0),0),
+    totalWagered:bets.filter(b=>!b.isAdjustment&&!b.isBonus).reduce((s,b)=>s+(b.amount||0),0),
   };
 
   const modeUsageCount = (key, player) => modeLog.filter(m=>m.key===key&&(player?m.player===player:true)).length;
@@ -655,7 +655,7 @@ export default function App() {
     if (player === "p1") p1 += bonus; else p2 += bonus;
     const divLabel = division === "mens" ? "Men’s" : "Women’s";
     const entry = { id: Date.now(), timestamp: nowTimestamp(), date: new Date().toISOString().slice(0,10), player, division, rank, wrestler, bonus, titleWon };
-    const adjRecord = { id: Date.now()+1, timestamp: nowTimestamp(), date: new Date().toISOString().slice(0,10), isAdjustment:true, adjustTarget:player, adjustAmount:bonus, description:"🏆 Power Rankings Bonus — "+wrestler+" ("+divLabel+" Rank #"+(rank+1)+") won: "+titleWon, sport:"WWE", betType:"Adjustment", mode:"adjust", result:"Applied", winner:"none", amount:0, p1BalAfter:p1, p2BalAfter:p2 };
+    const adjRecord = { id: Date.now()+1, timestamp: nowTimestamp(), date: new Date().toISOString().slice(0,10), isBonus:true, adjustTarget:player, adjustAmount:bonus, description:"🏆 Power Rankings Bonus — "+wrestler+" ("+divLabel+" Rank #"+(rank+1)+") won: "+titleWon, sport:"WWE", betType:"Bonus", mode:"bonus", result:"Applied", winner:"none", amount:0, p1BalAfter:p1, p2BalAfter:p2 };
     updateState((prev) => ({ ...prev, bets:[adjRecord,...(prev.bets||[])], rankingLog:[entry,...(prev.rankingLog||[])], p1Balance:p1, p2Balance:p2 }));
     setClaimForm(blankClaim);
     setShowClaimBonus(false);
@@ -665,7 +665,7 @@ export default function App() {
   };
 
   if (!activePlayer) {
-    return <ProfileSelector p1Name={state.p1Name} p2Name={state.p2Name} onSelect={selectPlayer} />;
+    return <ProfileSelector p1Name={state.p1Name} p2Name={state.p2Name} p1Color={p1Color} p2Color={p2Color} onSelect={selectPlayer} />;
   }
 
   if(loading) return (
@@ -717,7 +717,7 @@ export default function App() {
             <div style={{background:T.surface,border:`2px solid ${p1Lead?p1Color.highlight:T.border}`,borderRadius:3,padding:"12px 14px",position:"relative"}}>
               <button onClick={()=>setShowColorPicker("p1")} style={{position:"absolute",top:8,right:8,background:p1Color.highlight,border:"none",width:16,height:16,borderRadius:"50%",cursor:"pointer",opacity:0.8}} title="Change color"/>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:2}}>{state.p1Name.toUpperCase()}</div>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:p1Lead?p1Color.highlight:tied?"#888":"#E06C75",letterSpacing:1}}>{fmt(state.p1Balance)}</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:p1Lead?p1Color.highlight:tied?"#888":p2Color.highlight,letterSpacing:1}}>{fmt(state.p1Balance)}</div>
               <div style={{fontSize:10,color:T.textDim,marginTop:2}}>H2H {stats.p1H2hW}W-{stats.p2H2hW}L &middot; Solo {stats.p1SW}W-{stats.p1SL}L</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 6px"}}>
@@ -728,14 +728,14 @@ export default function App() {
             <div style={{background:T.surface,border:`2px solid ${!p1Lead&&!tied?p2Color.highlight:T.border}`,borderRadius:3,padding:"12px 14px",textAlign:"right",position:"relative"}}>
               <button onClick={()=>setShowColorPicker("p2")} style={{position:"absolute",top:8,left:8,background:p2Color.highlight,border:"none",width:16,height:16,borderRadius:"50%",cursor:"pointer",opacity:0.8}} title="Change color"/>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:2}}>{state.p2Name.toUpperCase()}</div>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:!p1Lead&&!tied?p2Color.highlight:tied?"#888":"#E06C75",letterSpacing:1}}>{fmt(state.p2Balance)}</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:!p1Lead&&!tied?p2Color.highlight:tied?"#888":p1Color.highlight,letterSpacing:1}}>{fmt(state.p2Balance)}</div>
               <div style={{fontSize:10,color:T.textDim,marginTop:2}}>H2H {stats.p2H2hW}W-{stats.p1H2hW}L &middot; Solo {stats.p2SW}W-{stats.p2SL}L</div>
             </div>
           </div>
 
           {/* TABS */}
           <div style={{display:"flex",borderTop:`1px solid ${T.border}`,overflowX:"auto"}}>
-            {[["ledger","📒 LEDGER"],["stats","📊 STATS"],["modes","⚡ SPECIAL MODES"],["rules","📋 RULES"],["rankings","🏆 RANKINGS"],["settings","⚙️ SETTINGS"]].map(([t,l])=>(
+            {[["ledger","📒 LEDGER"],["stats","📊 STATS"],["modes","⚡ SPECIAL MODES"],["rules","📋 RULES"],["rankings","🏆 POWER RANKINGS"],["settings","⚙️ SETTINGS"]].map(([t,l])=>(
               <button key={t} className="tb" onClick={()=>setTab(t)} style={{color:tab===t?T.gold:T.textMuted,borderBottom:tab===t?`2px solid ${T.gold}`:"2px solid transparent",whiteSpace:"nowrap"}}>{l}</button>
             ))}
           </div>
@@ -807,6 +807,7 @@ export default function App() {
                       const isPLE=bet.betType==="PLE Card";
                       const isSolo=bet.mode==="solo";
                       const isAdj=bet.isAdjustment;
+                      const isBonus=bet.isBonus;
                       const rC=rc(bet.result);
                       const canEdit=bet.result==="Pending"&&!isAdj&&!isPLE;
                       return (
@@ -816,22 +817,23 @@ export default function App() {
                             {bet.timestamp&&<div style={{color:T.textDim,fontSize:9}}>{fmtTime(bet.timestamp).split(" ").pop()}</div>}
                           </td>
                           <td style={{padding:"8px 9px"}}>
-                            {isAdj?<span style={{color:T.textMuted,fontSize:11}}>&mdash;</span>:
+                            {isAdj||isBonus?<span style={{color:T.textMuted,fontSize:11}}>&mdash;</span>:
                               <span style={{background:sportColors[bet.sport]||"#333",color:"#fff",fontSize:9,padding:"2px 6px",borderRadius:2,letterSpacing:1,fontFamily:"'Bebas Neue',cursive"}}>{bet.sport}</span>}
                           </td>
                           <td style={{padding:"8px 9px"}}>
-                            {isAdj?<span className="pill" style={{background:"#1A1A2A",color:"#6FA8DC"}}>ADJ</span>
+                            {isBonus?<span className="pill" style={{background:"#0A2A1A",color:"#5AAF7A"}}>BONUS</span>
+                              :isAdj?<span className="pill" style={{background:"#1A1A2A",color:"#6FA8DC"}}>ADJ</span>
                               :isPLE?<span className="pill" style={{background:"#3A1A1A",color:"#F08080"}}>PLE</span>
                               :isSolo?<span className="pill" style={{background:"#1A2A1A",color:"#6EC98A"}}>SOLO</span>
                               :<span className="pill" style={{background:"#1A2A3A",color:"#6FA8DC"}}>H2H</span>}
                           </td>
                           <td style={{padding:"8px 9px",maxWidth:180}}>
                             <div style={{color:T.text,fontWeight:500,lineHeight:1.4}}>{bet.description}</div>
-                            {!isAdj&&<div style={{color:T.textMuted,fontSize:10,marginTop:1}}>{bet.betType}{isSolo&&bet.payout!==1?` · ${bet.payout}x`:""}</div>}
+                            {!isAdj&&!isBonus&&<div style={{color:T.textMuted,fontSize:10,marginTop:1}}>{bet.betType}{isSolo&&bet.payout!==1?` · ${bet.payout}x`:""}</div>}
                             {bet.notes&&<div style={{color:T.textDim,fontSize:10,fontStyle:"italic"}}>{bet.notes}</div>}
                           </td>
                           <td style={{padding:"8px 9px",minWidth:100}}>
-                            {isAdj?<span style={{color:T.textMuted,fontSize:11}}>&mdash;</span>
+                            {isAdj||isBonus?<span style={{color:T.textMuted,fontSize:11}}>&mdash;</span>
                               :isPLE?(
                                 <div style={{fontSize:10}}>
                                   <div style={{color:p1Color.highlight}}>{state.p1Name.slice(0,7)}: {bet.p1Pick||"—"} <span style={{color:T.gold}}>({fmt(bet.p1Stake||0)})</span></div>
@@ -846,8 +848,8 @@ export default function App() {
                                 </div>
                               )}
                           </td>
-                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:15,color:isAdj?"#6FA8DC":T.gold,whiteSpace:"nowrap"}}>
-                            {isAdj?(bet.adjustAmount>0?"+":"")+fmt(bet.adjustAmount):isPLE?<span style={{fontSize:10,color:T.textMuted}}>see picks</span>:fmt(bet.amount)}
+                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:15,color:isBonus?"#5AAF7A":isAdj?"#6FA8DC":T.gold,whiteSpace:"nowrap"}}>
+                            {isBonus?(bet.adjustAmount>0?"+":"")+fmt(bet.adjustAmount):isAdj?(bet.adjustAmount>0?"+":"")+fmt(bet.adjustAmount):isPLE?<span style={{fontSize:10,color:T.textMuted}}>see picks</span>:fmt(bet.amount)}
                           </td>
                           <td style={{padding:"8px 9px",minWidth:130}}>
                             {bet.result==="Pending"?(
@@ -869,10 +871,10 @@ export default function App() {
                               <span style={{background:rC.bg,color:rC.color,fontSize:9,padding:"3px 8px",borderRadius:2,letterSpacing:1}}>{bet.result.toUpperCase()}</span>
                             )}
                           </td>
-                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:13,color:isAdj&&bet.adjustTarget==="p1"?"#6FA8DC":bet.winner==="p1"?"#5AAF7A":bet.winner==="p2"?"#E06C75":T.textMuted,whiteSpace:"nowrap"}}>
+                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:13,color:(isAdj||isBonus)&&bet.adjustTarget==="p1"?"#5AAF7A":bet.winner==="p1"?"#5AAF7A":bet.winner==="p2"?"#E06C75":T.textMuted,whiteSpace:"nowrap"}}>
                             {bet.p1BalAfter!=null?fmt(bet.p1BalAfter):"—"}
                           </td>
-                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:13,color:isAdj&&bet.adjustTarget==="p2"?"#6FA8DC":bet.winner==="p2"?"#5AAF7A":bet.winner==="p1"?"#E06C75":T.textMuted,whiteSpace:"nowrap"}}>
+                          <td style={{padding:"8px 9px",fontFamily:"'Bebas Neue',cursive",fontSize:13,color:(isAdj||isBonus)&&bet.adjustTarget==="p2"?"#5AAF7A":bet.winner==="p2"?"#5AAF7A":bet.winner==="p1"?"#E06C75":T.textMuted,whiteSpace:"nowrap"}}>
                             {bet.p2BalAfter!=null?fmt(bet.p2BalAfter):"—"}
                           </td>
                           <td style={{padding:"8px 6px"}}>
@@ -921,10 +923,10 @@ export default function App() {
                 );})}
               </div>
             </div>
-            {bets.filter(b=>b.amount>0&&!b.isAdjustment).length>0&&(
+            {bets.filter(b=>b.amount>0&&!b.isAdjustment&&!b.isBonus).length>0&&(
               <div style={{gridColumn:"1/-1",background:T.surface,border:`1px solid ${T.border}`,padding:"16px",borderRadius:3}}>
                 <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:T.gold,letterSpacing:2,marginBottom:12}}>BIGGEST BETS</div>
-                {[...bets].filter(b=>b.amount>0&&!b.isAdjustment).sort((a,b)=>b.amount-a.amount).slice(0,5).map(b=>(
+                {[...bets].filter(b=>b.amount>0&&!b.isAdjustment&&!b.isBonus).sort((a,b)=>b.amount-a.amount).slice(0,5).map(b=>(
                   <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${T.border}`}}>
                     <div><div style={{fontSize:13,color:T.text}}>{b.description}</div><div style={{fontSize:10,color:T.textMuted}}>{b.date} &middot; {b.sport} &middot; {b.mode==="solo"?"Solo":"H2H"}</div></div>
                     <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold}}>{fmt(b.amount)}</div>
