@@ -168,8 +168,7 @@ function exportCSV(bets, p1Name, p2Name) {
     b.p1BalAfter || "", b.p2BalAfter || "",
     `"${(b.notes||"").replace(/"/g,'""')}"`
   ].join(","));
-  const csv = [headers.join(","), ...rows].join("
-");
+  const csv = [headers.join(","), ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href=url; a.download="mythical-money-bets.csv"; a.click();
@@ -178,8 +177,7 @@ function exportCSV(bets, p1Name, p2Name) {
 
 // CSV import
 function parseCSV(text) {
-  const lines = text.trim().split("
-");
+  const lines = text.trim().split("\n");
   if (lines.length < 2) return [];
   return lines.slice(1).map((line, i) => {
     const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || [];
@@ -1311,7 +1309,7 @@ export default function App() {
               })}
             </div>
             <div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"7px 12px",borderRadius:2,marginBottom:12,fontSize:11,color:T.textMuted}}>
-              {pleEntryPlayer==="p1"?`${state.p1Name} is entering picks. ${state.p2Name}'s picks are hidden until locked.`:`${state.p2Name} is entering picks. ${state.p1Name}'s picks are hidden until locked.`}
+              {pleEntryPlayer==="p1"?`${state.p1Name} is entering picks. ${state.p2Name}&apos;s picks are hidden until locked.`:`${state.p2Name} is entering picks. ${state.p1Name}'s picks are hidden until locked.`}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {pleForm.matches.map((m,i)=>{
@@ -1403,7 +1401,7 @@ export default function App() {
               {adjustForm.amount&&(
                 <div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"9px 13px",borderRadius:2,fontSize:12,color:T.textMuted}}>
                   <span style={{color:adjustForm.direction==="add"?"#5AAF7A":"#E06C75"}}>{adjustForm.direction==="add"?"+":"-"}{fmt(parseInt(String(adjustForm.amount).replace(/,/g,""))||0)}</span>
-                  {" "}to {adjustForm.target==="p1"?state.p1Name:state.p2Name}'s stack \u2192{" "}
+                  {" "}to {adjustForm.target==="p1"?state.p1Name:state.p2Name}&apos;s stack \u2192{" "}
                   <span style={{color:T.gold,fontFamily:"'Bebas Neue',cursive",fontSize:15}}>{fmt((adjustForm.target==="p1"?state.p1Balance:state.p2Balance)+(adjustForm.direction==="add"?1:-1)*(parseInt(String(adjustForm.amount).replace(/,/g,""))||0))}</span>
                 </div>
               )}
