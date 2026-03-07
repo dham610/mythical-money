@@ -1086,7 +1086,7 @@ export default function App() {
             {/* MEN'S DIVISION */}
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#6FA8DC",letterSpacing:3}}{`💪 MEN\u2019S DIVISION`}</div>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#6FA8DC",letterSpacing:3}}>💪 MEN&apos;S DIVISION</div>
                 <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#1A2A3A",color:"#6FA8DC"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"mens")]);setEditingRankings("mens");}}>✏ EDIT MY MENS TOP 5</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -1140,7 +1140,7 @@ export default function App() {
             {/* WOMEN'S DIVISION */}
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#E06C75",letterSpacing:3}}{`👑 WOMEN\u2019S DIVISION`}</div>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#E06C75",letterSpacing:3}}>👑 WOMEN&apos;S DIVISION</div>
                 <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#3A1A2A",color:"#E06C75"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"womens")]);setEditingRankings("womens");}}>✏ EDIT MY WOMENS TOP 5</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
