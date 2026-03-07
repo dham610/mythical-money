@@ -261,9 +261,9 @@ export default function App() {
   const [showAdjust, setShowAdjust] = useState(false);
   const [showLogMode, setShowLogMode] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(null);
-  const [editingNames, setEditingNames] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [filterSport, setFilterSport] = useState("All");
+
   const [filterResult, setFilterResult] = useState("All");
   const [filterMode, setFilterMode] = useState("All");
   const [sortCol, setSortCol] = useState("timestamp");
@@ -490,7 +490,7 @@ export default function App() {
   };
 
   const resetSeason = () => { updateState({...initialState,p1Name:state.p1Name,p2Name:state.p2Name,p1Color:state.p1Color,p2Color:state.p2Color,season:new Date().getFullYear()}); setShowResetConfirm(false); };
-  const saveNames = () => { updateState((prev)=>({...prev,p1Name:nameForm.p1||prev.p1Name,p2Name:nameForm.p2||prev.p2Name})); setEditingNames(false); };
+  const saveNames = () => { updateState((prev)=>({...prev,p1Name:nameForm.p1||prev.p1Name,p2Name:nameForm.p2||prev.p2Name})); };
   const saveColor = (player, color) => { updateState((prev)=>({...prev,[`${player}Color`]:color})); setShowColorPicker(null); };
 
   // ── CSV Import ────────────────────────────────────────────────────────────
