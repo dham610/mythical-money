@@ -690,7 +690,6 @@ export default function App() {
         .sb{background:transparent;border:1px solid;font-size:11px;padding:3px 7px;border-radius:2px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap}
         .pill{display:inline-flex;align-items:center;font-size:10px;padding:2px 8px;border-radius:10px;font-family:'Bebas Neue',cursive;letter-spacing:1px}
         select.fi option{background:${T.inputBg};color:${T.text}}
-        @keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
       `}</style>
 
       {/* HEADER */}
@@ -699,7 +698,7 @@ export default function App() {
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 0 0",flexWrap:"wrap",gap:8}}>
             <div style={{flex:1}}/>
             <div style={{textAlign:"center"}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,letterSpacing:3,lineHeight:1,background:`linear-gradient(90deg,${T.gold} 0%,${T.goldBright} 40%,#FFF8DC 50%,${T.goldBright} 60%,${T.gold} 100%)`,backgroundSize:"200% auto",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",animation:"shimmer 3s linear infinite"}}>MYTHICAL MONEY</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,letterSpacing:3,lineHeight:1,background:"linear-gradient(180deg,#FFF5C0 0%,#F5C842 20%,#D4A017 45%,#A87010 60%,#D4A017 75%,#F5C842 90%,#C8860A 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>MYTHICAL MONEY</div>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:3,marginTop:2}}>SEASON {state.season} &middot; RESETS AFTER NBA FINALS</div>
             </div>
             <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,flexWrap:"wrap"}}>
