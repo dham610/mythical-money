@@ -1068,7 +1068,7 @@ export default function App() {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
               <div>
                 <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:T.gold,letterSpacing:3}}>🏆 WWE POWER RANKINGS</div>
-                <div style={{fontSize:11,color:T.textMuted,marginTop:2}}>Separate Top 5 for Men's and Women's divisions. Title win = stack bonus.</div>
+                <div style={{fontSize:11,color:T.textMuted,marginTop:2}}>Separate Top 5 for Men&apos;s and Women&apos;s divisions. Title win = stack bonus.</div>
               </div>
               <button className="gh" style={{padding:"8px 18px",fontSize:13,borderRadius:2,borderColor:"#1A4A1A",color:"#5AAF7A"}} onClick={()=>{setClaimForm(blankClaim);setShowClaimBonus(true);}}>💰 CLAIM BONUS</button>
             </div>
@@ -1086,7 +1086,7 @@ export default function App() {
             {/* MEN'S DIVISION */}
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#6FA8DC",letterSpacing:3}}>💪 MEN'S DIVISION</div>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#6FA8DC",letterSpacing:3}}{`💪 MEN\u2019S DIVISION`}</div>
                 <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#1A2A3A",color:"#6FA8DC"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"mens")]);setEditingRankings("mens");}}>✏ EDIT MY MENS TOP 5</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -1140,7 +1140,7 @@ export default function App() {
             {/* WOMEN'S DIVISION */}
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#E06C75",letterSpacing:3}}>👑 WOMEN'S DIVISION</div>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#E06C75",letterSpacing:3}}{`👑 WOMEN\u2019S DIVISION`}</div>
                 <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#3A1A2A",color:"#E06C75"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"womens")]);setEditingRankings("womens");}}>✏ EDIT MY WOMENS TOP 5</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -1195,7 +1195,7 @@ export default function App() {
             <div style={{background:T.surface,border:`1px solid ${T.border}`,borderLeft:`3px solid ${T.gold}`,padding:"14px 18px",borderRadius:3}}>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:T.gold,letterSpacing:2,marginBottom:8}}>HOW IT WORKS</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12,color:T.textMuted,lineHeight:1.7}}>
-                <div>• Separate Top 5 for Men's and Women's divisions.</div>
+                <div>• Separate Top 5 for Men&apos;s and Women&apos;s divisions.</div>
                 <div>• Both players manage their own rosters independently.</div>
                 <div>• Any title win by a ranked wrestler triggers a bonus.</div>
                 <div>• Both players can rank the same wrestler — no penalty.</div>
@@ -1216,7 +1216,7 @@ export default function App() {
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${divColor}`,borderRadius:4,width:"100%",maxWidth:460,maxHeight:"92vh",overflowY:"auto",padding:24}}>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:divColor,letterSpacing:3,marginBottom:2}}>{isMens?"💪":"👑"} {myName.toUpperCase()} — {divLabel} TOP 5</div>
-            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Your picks only. Won't affect the other player's roster.</div>
+            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Your picks only. Won&apos;t affect the other player&apos;s roster.</div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               {rankForm.map((w,i)=>(
                 <div key={i} style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -1317,7 +1317,7 @@ export default function App() {
         </div>
       )}
 
-            {/* ═══ RESET CONFIRM ═══ */}
+      {/* ═══ RESET CONFIRM ═══ */}
       {showResetConfirm&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:"1px solid #4A1A1A",borderTop:"2px solid #C0392B",borderRadius:4,width:"100%",maxWidth:340,padding:24,textAlign:"center"}}>
