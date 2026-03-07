@@ -213,9 +213,11 @@ const initialState = {
   p2Color: { highlight:"#E06C75", font:"#080808" },
   bets: [], season: new Date().getFullYear(),
   modeLog: [],
-  p1Rankings: blankRankings(),
-  p2Rankings: blankRankings(),
-  rankingLog: [], // [{id, player, rank, wrestler, bonus, date, timestamp, titleWon}]
+  p1MensRankings: blankRankings(),
+  p1WomensRankings: blankRankings(),
+  p2MensRankings: blankRankings(),
+  p2WomensRankings: blankRankings(),
+  rankingLog: [], // [{id, player, division, rank, wrestler, bonus, date, timestamp, titleWon}]
 };
 
 function recalcBalances(bets) {
@@ -384,10 +386,10 @@ export default function App() {
   const [modeLogForm, setModeLogForm] = useState(blankModeLog);
 
   // ── Rankings ──────────────────────────────────────────────────────────────
-  const [editingRankings, setEditingRankings] = useState(false);
-  const [rankForm, setRankForm] = useState({ p1: blankRankings(), p2: blankRankings() });
+  const [editingRankings, setEditingRankings] = useState(null); // null | "mens" | "womens"
+  const [rankForm, setRankForm] = useState(blankRankings());
   const [showClaimBonus, setShowClaimBonus] = useState(false);
-  const blankClaim = { player:"p1", rank:0, titleWon:"" };
+  const blankClaim = { player:"p1", division:"mens", rank:0, titleWon:"" };
   const [claimForm, setClaimForm] = useState(blankClaim);
 
   // ── Firebase ──────────────────────────────────────────────────────────────
@@ -574,35 +576,39 @@ export default function App() {
   const saveColor = (player, color) => { updateState((prev)=>({...prev,[`${player}Color`]:color})); setShowColorPicker(null); };
 
   // ── Rankings logic ────────────────────────────────────────────────────────
+  const getRankings = (player, division) => {
+    const key = `${player}${division==="mens"?"Mens":"Womens"}Rankings`;
+    return state[key] || blankRankings();
+  };
+
   const saveRankings = () => {
-    updateState((prev) => ({
-      ...prev,
-      p1Rankings: rankForm.p1,
-      p2Rankings: rankForm.p2,
-    }));
-    setEditingRankings(false);
+    const divKey = editingRankings === "mens" ? "Mens" : "Womens";
+    const key = `${activePlayer}${divKey}Rankings`;
+    updateState((prev) => ({ ...prev, [key]: rankForm }));
+    setEditingRankings(null);
   };
 
   const claimRankingBonus = () => {
-    const { player, rank, titleWon } = claimForm;
+    const { player, division, rank, titleWon } = claimForm;
     if (!titleWon.trim()) return;
-    const rankings = player === "p1" ? (state.p1Rankings || blankRankings()) : (state.p2Rankings || blankRankings());
+    const rankings = getRankings(player, division);
     const wrestler = rankings[rank]?.name;
     if (!wrestler) return;
     const bonus = RANK_BONUSES[rank];
     let p1 = state.p1Balance, p2 = state.p2Balance;
     if (player === "p1") p1 += bonus; else p2 += bonus;
+    const divLabel = division === "mens" ? "Men's" : "Women's";
     const entry = {
       id: Date.now(), timestamp: nowTimestamp(),
       date: new Date().toISOString().slice(0, 10),
-      player, rank, wrestler, bonus, titleWon,
+      player, division, rank, wrestler, bonus, titleWon,
     };
     const adjRecord = {
       id: Date.now() + 1, timestamp: nowTimestamp(),
       date: new Date().toISOString().slice(0, 10),
       isAdjustment: true, adjustTarget: player,
       adjustAmount: bonus,
-      description: `🏆 Power Rankings Bonus — ${wrestler} (Rank #${rank + 1}) won: ${titleWon}`,
+      description: `🏆 Power Rankings Bonus — ${wrestler} (${divLabel} Rank #${rank + 1}) won: ${titleWon}`,
       sport: "WWE", betType: "Adjustment", mode: "adjust", result: "Applied", winner: "none",
       amount: 0, p1BalAfter: p1, p2BalAfter: p2,
     };
@@ -1056,491 +1062,193 @@ export default function App() {
 
         {/* ═══ RANKINGS ═══ */}
         {tab==="rankings"&&(
-          <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"flex",flexDirection:"column",gap:20}}>
 
-            {/* Header row */}
+            {/* Header */}
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
               <div>
                 <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:T.gold,letterSpacing:3}}>🏆 WWE POWER RANKINGS</div>
-                <div style={{fontSize:11,color:T.textMuted,marginTop:2}}>Each player's Top 5 roster. Title win = stack bonus.</div>
+                <div style={{fontSize:11,color:T.textMuted,marginTop:2}}>Separate Top 5 for Men's and Women's divisions. Title win = stack bonus.</div>
               </div>
-              <div style={{display:"flex",gap:8}}>
-                <button className="bg" style={{padding:"8px 18px",fontSize:13,borderRadius:2}} onClick={()=>{setRankForm({p1:[...(state.p1Rankings||blankRankings())],p2:[...(state.p2Rankings||blankRankings())]});setEditingRankings(true);}}>✏ EDIT RANKINGS</button>
-                <button className="gh" style={{padding:"8px 18px",fontSize:13,borderRadius:2,borderColor:"#1A4A1A",color:"#5AAF7A"}} onClick={()=>{setClaimForm(blankClaim);setShowClaimBonus(true);}}>💰 CLAIM BONUS</button>
-              </div>
+              <button className="gh" style={{padding:"8px 18px",fontSize:13,borderRadius:2,borderColor:"#1A4A1A",color:"#5AAF7A"}} onClick={()=>{setClaimForm(blankClaim);setShowClaimBonus(true);}}>💰 CLAIM BONUS</button>
             </div>
 
-            {/* Bonus scale reference */}
+            {/* Bonus scale */}
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {RANK_BONUSES.map((bonus,i)=>(
-                <div key={i} style={{flex:1,minWidth:80,background:T.surface,border:`1px solid ${T.border}`,borderTop:`2px solid ${T.gold}`,borderRadius:3,padding:"8px 10px",textAlign:"center"}}>
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:11,color:T.textMuted,letterSpacing:2}}>RANK #{i+1}</div>
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:T.gold}}>{fmtShort(bonus)}</div>
-                  <div style={{fontSize:9,color:T.textMuted}}>title bonus</div>
+                <div key={i} style={{flex:1,minWidth:70,background:T.surface,border:`1px solid ${T.border}`,borderTop:`2px solid ${T.gold}`,borderRadius:3,padding:"7px 8px",textAlign:"center"}}>
+                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:10,color:T.textMuted,letterSpacing:2}}>RANK #{i+1}</div>
+                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold}}>{fmtShort(bonus)}</div>
                 </div>
               ))}
             </div>
 
-            {/* Side-by-side rosters */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              {[["p1",state.p1Name,p1Color],["p2",state.p2Name,p2Color]].map(([player,name,pColor])=>{
-                const rankings = (player==="p1"?state.p1Rankings:state.p2Rankings)||blankRankings();
-                const playerLog = (state.rankingLog||[]).filter(r=>r.player===player);
-                const totalEarned = playerLog.reduce((s,r)=>s+r.bonus,0);
-                return(
-                  <div key={player}>
-                    <div style={{background:T.surface,border:`2px solid ${pColor.highlight}`,borderRadius:4,overflow:"hidden"}}>
-                      {/* Roster header */}
-                      <div style={{background:`${pColor.highlight}22`,borderBottom:`1px solid ${pColor.highlight}44`,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:pColor.highlight,letterSpacing:2}}>{name.toUpperCase()}'S ROSTER</div>
-                        {totalEarned>0&&<div style={{fontSize:10,color:"#5AAF7A",background:"#0A2A1A",padding:"3px 8px",borderRadius:2,letterSpacing:1}}>+{fmt(totalEarned)} EARNED</div>}
-                      </div>
-                      {/* Wrestler list */}
-                      <div style={{padding:"8px 0"}}>
-                        {rankings.map((w,i)=>(
-                          <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:i<4?`1px solid ${T.border}`:"none"}}>
-                            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:i===0?T.gold:`${pColor.highlight}66`,lineHeight:1,minWidth:32,textAlign:"center"}}>{i+1}</div>
-                            <div style={{flex:1}}>
-                              {w.name?(
-                                <>
-                                  <div style={{fontSize:14,color:T.text,fontWeight:500}}>{w.name}</div>
-                                  {w.notes&&<div style={{fontSize:10,color:T.textMuted,fontStyle:"italic",marginTop:1}}>{w.notes}</div>}
-                                </>
-                              ):(
-                                <div style={{fontSize:12,color:T.textDim,fontStyle:"italic"}}>— empty slot —</div>
-                              )}
+            {/* MEN'S DIVISION */}
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#6FA8DC",letterSpacing:3}}>💪 MEN'S DIVISION</div>
+                <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#1A2A3A",color:"#6FA8DC"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"mens")]);setEditingRankings("mens");}}>✏ EDIT MY MENS TOP 5</button>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                {[["p1",state.p1Name,p1Color],["p2",state.p2Name,p2Color]].map(([player,name,pColor])=>{
+                  const rankings = getRankings(player,"mens");
+                  const playerLog = (state.rankingLog||[]).filter(r=>r.player===player&&r.division==="mens");
+                  const totalEarned = playerLog.reduce((s,r)=>s+r.bonus,0);
+                  return(
+                    <div key={player}>
+                      <div style={{background:T.surface,border:`2px solid ${pColor.highlight}`,borderRadius:4,overflow:"hidden"}}>
+                        <div style={{background:`${pColor.highlight}22`,borderBottom:`1px solid ${pColor.highlight}44`,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:15,color:pColor.highlight,letterSpacing:2}}>{name.toUpperCase()}</div>
+                          {totalEarned>0&&<div style={{fontSize:9,color:"#5AAF7A",background:"#0A2A1A",padding:"2px 7px",borderRadius:2,letterSpacing:1}}>+{fmt(totalEarned)} EARNED</div>}
+                        </div>
+                        <div style={{padding:"4px 0"}}>
+                          {rankings.map((w,i)=>(
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:i<4?`1px solid ${T.border}`:"none"}}>
+                              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:i===0?T.gold:`${pColor.highlight}55`,lineHeight:1,minWidth:24,textAlign:"center"}}>{i+1}</div>
+                              <div style={{flex:1}}>
+                                {w.name?<><div style={{fontSize:13,color:T.text,fontWeight:500}}>{w.name}</div>{w.notes&&<div style={{fontSize:10,color:T.textMuted,fontStyle:"italic"}}>{w.notes}</div>}</>
+                                  :<div style={{fontSize:11,color:T.textDim,fontStyle:"italic"}}>— empty —</div>}
+                              </div>
+                              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:T.gold}}>{fmtShort(RANK_BONUSES[i])}</div>
                             </div>
-                            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:13,color:T.gold}}>{fmtShort(RANK_BONUSES[i])}</div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
+                      {playerLog.length>0&&(
+                        <div style={{marginTop:6,background:T.surface2,border:`1px solid ${T.border}`,borderRadius:3,padding:"8px 12px"}}>
+                          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:6}}>BONUS HISTORY</div>
+                          {playerLog.map(entry=>(
+                            <div key={entry.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",borderBottom:`1px solid ${T.border}`}}>
+                              <div>
+                                <div style={{fontSize:11,color:T.text}}>🏆 {entry.wrestler} <span style={{color:T.textMuted,fontSize:9}}>#{entry.rank+1}</span></div>
+                                <div style={{fontSize:9,color:T.textMuted}}>{entry.date} · {entry.titleWon}</div>
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:"#5AAF7A"}}>+{fmt(entry.bonus)}</div>
+                                <button onClick={()=>deleteRankingLog(entry.id)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:10}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color=T.textDim}>✕</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-
-                    {/* Bonus history for this player */}
-                    {playerLog.length>0&&(
-                      <div style={{marginTop:8,background:T.surface2,border:`1px solid ${T.border}`,borderRadius:3,padding:"10px 14px"}}>
-                        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:11,color:T.textMuted,letterSpacing:2,marginBottom:8}}>BONUS HISTORY</div>
-                        {playerLog.map(entry=>(
-                          <div key={entry.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:`1px solid ${T.border}`}}>
-                            <div>
-                              <div style={{fontSize:12,color:T.text}}>🏆 {entry.wrestler} <span style={{color:T.textMuted,fontSize:10}}>#{entry.rank+1}</span></div>
-                              <div style={{fontSize:10,color:T.textMuted}}>{entry.date} · {entry.titleWon}</div>
-                            </div>
-                            <div style={{display:"flex",alignItems:"center",gap:8}}>
-                              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#5AAF7A"}}>+{fmt(entry.bonus)}</div>
-                              <button onClick={()=>deleteRankingLog(entry.id)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:11}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color=T.textDim}>✕</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Rules box */}
-            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderLeft:`3px solid ${T.gold}`,padding:"14px 18px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:T.gold,letterSpacing:2,marginBottom:10}}>HOW IT WORKS</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,fontSize:12,color:T.textMuted,lineHeight:1.7}}>
-                <div>• Each player maintains an independent Top 5 roster of WWE wrestlers.</div>
-                <div>• Rankings can be updated anytime — no lock-in.</div>
-                <div>• If a ranked wrestler wins <em>any</em> title, that player claims a stack bonus.</div>
-                <div>• Both players can rank the same wrestler — no overlap penalty.</div>
-                <div>• Bonus auto-logs as a Balance Adjustment in the Ledger.</div>
-                <div>• Rank #1 = $20K &nbsp;·&nbsp; #2 = $15K &nbsp;·&nbsp; #3 = $10K &nbsp;·&nbsp; #4 = $5K &nbsp;·&nbsp; #5 = $3K</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ═══ RULES ═══ */}
-        {tab==="rules"&&(
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderTop:`2px solid ${T.gold}`,padding:"18px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:T.gold,letterSpacing:3,marginBottom:14}}>BET TYPES & MULTIPLIERS</div>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                <thead><tr style={{borderBottom:`1px solid ${T.border}`}}>{["BET TYPE","MULTIPLIER","AVAILABLE IN"].map(h=><th key={h} style={{padding:"6px 12px",textAlign:"left",fontFamily:"'Bebas Neue',cursive",fontSize:10,letterSpacing:2,color:T.textMuted}}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {BET_TYPES.map(bt=><tr key={bt.label} style={{borderBottom:`1px solid ${T.border}`}}><td style={{padding:"8px 12px",color:T.text}}>{bt.label}</td><td style={{padding:"8px 12px",fontFamily:"'Bebas Neue',cursive",fontSize:17,color:T.goldBright}}>{bt.multiplier}</td><td style={{padding:"8px 12px",color:T.textMuted,fontSize:11}}>{bt.sports}</td></tr>)}
-                  <tr><td style={{padding:"8px 12px",color:T.text}}>WWE PLE Card</td><td style={{padding:"8px 12px",fontFamily:"'Bebas Neue',cursive",fontSize:17,color:T.goldBright}}>1x per match</td><td style={{padding:"8px 12px",color:T.textMuted,fontSize:11}}>WWE only</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div style={{background:T.surface,border:`1px solid #3A1A1A`,borderLeft:"3px solid #9b1c1c",padding:"14px 18px",borderRadius:2}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,letterSpacing:2,color:"#F08080",marginBottom:10}}>🤼 WWE PLE STAKE SCALE</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-                {[4,5,6,7,8].map(n=>(
-                  <div key={n} style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"10px 8px",borderRadius:2,textAlign:"center"}}>
-                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:13,color:"#F08080",marginBottom:6}}>{n} MATCHES</div>
-                    {getPleTiers(n).map(t=><div key={t} style={{fontSize:11,color:T.gold,lineHeight:1.6}}>{fmtShort(t)}</div>)}
-                    <div style={{fontSize:10,color:T.textMuted,marginTop:6}}>Max: {fmtShort(getPleTiers(n).reduce((a,b)=>a+b,0))}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {[
-              {num:"01",title:"STARTING STACK",body:"Both players begin at $100,000 Mythical Money. No real cash — pride and bragging rights only."},
-              {num:"02",title:"SEASON RESET",body:"Season ends the night of the NBA Finals clinching game. Whoever has more MM wins. Stacks reset to $100,000."},
-              {num:"03",title:"BET LIMITS",body:"Minimum bet: $1,000 MM. Max single H2H bet: 30% of your current stack. Solo bets have no cap."},
-              {num:"04",title:"BALANCE ADJUSTMENTS",body:"Use the ⚖ Adjust button in Settings to apply manual corrections to either stack. Logged with ADJ tag. Does not count as a bet."},
-              {num:"05",title:"BAILOUT RULE",body:"Drop below $10,000? One-time bailout to $15,000 — but forfeit your next H2H winning payout to your opponent."},
-              {num:"06",title:"GENTLEMAN'S HONOR",body:"All H2H bets agreed before the event starts. No retroactive bets. Your word is law."},
-              {num:"07",title:"PUSH / DEAD HEAT",body:"Tie or no-contest? Original wager returned. Nobody wins, nobody loses."},
-            ].map(r=>(
-              <div key={r.num} style={{display:"flex",gap:16,background:T.surface,border:`1px solid ${T.border}`,borderLeft:`3px solid ${T.gold}`,padding:"13px 16px",borderRadius:2}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:T.gold,opacity:.2,lineHeight:1,minWidth:34}}>{r.num}</div>
-                <div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:15,letterSpacing:2,color:T.goldBright,marginBottom:3}}>{r.title}</div><div style={{fontSize:13,color:T.textMuted,lineHeight:1.6}}>{r.body}</div></div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ═══ SETTINGS ═══ */}
-        {tab==="settings"&&(
-          <div style={{display:"flex",flexDirection:"column",gap:16,maxWidth:700}}>
-
-            {/* WHO YOU ARE */}
-            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderTop:`2px solid ${T.gold}`,padding:"18px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:14}}>👤 ACTIVE PROFILE</div>
-              <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-                {[["p1",state.p1Name,p1Color.highlight],["p2",state.p2Name,p2Color.highlight]].map(([key,name,color])=>(
-                  <button key={key} onClick={()=>selectPlayer(key)}
-                    style={{display:"flex",alignItems:"center",gap:8,padding:"10px 18px",border:`2px solid ${activePlayer===key?color:T.border2}`,borderRadius:4,background:activePlayer===key?`${color}22`:"transparent",cursor:"pointer",transition:"all .2s"}}>
-                    <div style={{width:28,height:28,borderRadius:"50%",background:color,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                      <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#fff"}}>{name.slice(0,1)}</span>
-                    </div>
-                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:activePlayer===key?color:T.textMuted,letterSpacing:2}}>{name}</div>
-                    {activePlayer===key&&<span style={{fontSize:9,color:color,letterSpacing:1}}>● YOU</span>}
-                  </button>
-                ))}
-              </div>
-              <div style={{fontSize:11,color:T.textMuted,marginTop:10}}>Your profile controls which theme is remembered on this device. Switching profiles switches themes.</div>
-            </div>
-
-            {/* THEME */}
-            <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:6}}>🎨 COLOR THEME</div>
-              <div style={{fontSize:11,color:T.textMuted,marginBottom:16}}>Your theme saves to this device only — the other player sees their own choice.</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
-                {Object.entries(THEMES).map(([key,theme])=>{
-                  const active = themeKey === key;
-                  return (
-                    <button key={key} onClick={()=>selectTheme(key)}
-                      style={{padding:"14px 10px",border:`2px solid ${active?theme.gold:theme.border2}`,borderRadius:6,background:theme.bg,cursor:"pointer",transition:"all .2s",textAlign:"center",transform:active?"scale(1.03)":"scale(1)"}}>
-                      <div style={{fontSize:22,marginBottom:6}}>{theme.icon}</div>
-                      <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:theme.gold,letterSpacing:2}}>{theme.name}</div>
-                      <div style={{display:"flex",gap:4,justifyContent:"center",marginTop:8}}>
-                        <div style={{width:12,height:12,borderRadius:2,background:theme.bg,border:`1px solid ${theme.border2}`}}/>
-                        <div style={{width:12,height:12,borderRadius:2,background:theme.surface}}/>
-                        <div style={{width:12,height:12,borderRadius:2,background:theme.gold}}/>
-                      </div>
-                      {active&&<div style={{fontSize:9,color:theme.gold,marginTop:6,letterSpacing:1}}>● ACTIVE</div>}
-                    </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* PLAYER NAMES */}
-            <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:14}}>✏ PLAYER NAMES</div>
-              <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
-                {[["p1","PLAYER 1"],["p2","PLAYER 2"]].map(([k,l])=>(
-                  <div key={k}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>{l} — CURRENTLY: {state[k+"Name"]}</label><input className="fi" placeholder={state[k+"Name"]} value={nameForm[k]} onChange={e=>setNameForm({...nameForm,[k]:e.target.value})}/></div>
-                ))}
+            {/* WOMEN'S DIVISION */}
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#E06C75",letterSpacing:3}}>👑 WOMEN'S DIVISION</div>
+                <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#3A1A2A",color:"#E06C75"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"womens")]);setEditingRankings("womens");}}>✏ EDIT MY WOMENS TOP 5</button>
               </div>
-              <button className="bg" style={{padding:"10px 20px",fontSize:14,borderRadius:2}} onClick={saveNames}>SAVE NAMES</button>
-            </div>
-
-            {/* BALANCE ADJUSTMENT */}
-            <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#6FA8DC",letterSpacing:3,marginBottom:6}}>⚖ BALANCE ADJUSTMENT</div>
-              <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Manual corrections to either stack. Logged with ADJ tag. Does not count as a bet.</div>
-              <button className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,borderColor:"#1A1A2A",color:"#6FA8DC"}} onClick={()=>setShowAdjust(true)}>OPEN ADJUSTMENT PANEL</button>
-            </div>
-
-            {/* IMPORT / EXPORT */}
-            <div style={{background:T.surface,border:`1px solid ${T.border}`,padding:"18px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:3,marginBottom:6}}>📁 DATA</div>
-              <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Export your full bet history to CSV, or import from a previously exported file.</div>
-              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                <button className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,borderColor:"#1A2A1A",color:"#5AAF7A"}} onClick={()=>exportCSV(bets,state.p1Name,state.p2Name)}>↓ Export CSV</button>
-                <label className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,cursor:"pointer",display:"inline-block",border:`1px solid ${T.border2}`,color:T.textMuted}}>
-                  ↑ Import CSV<input type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
-                </label>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                {[["p1",state.p1Name,p1Color],["p2",state.p2Name,p2Color]].map(([player,name,pColor])=>{
+                  const rankings = getRankings(player,"womens");
+                  const playerLog = (state.rankingLog||[]).filter(r=>r.player===player&&r.division==="womens");
+                  const totalEarned = playerLog.reduce((s,r)=>s+r.bonus,0);
+                  return(
+                    <div key={player}>
+                      <div style={{background:T.surface,border:`2px solid ${pColor.highlight}`,borderRadius:4,overflow:"hidden"}}>
+                        <div style={{background:`${pColor.highlight}22`,borderBottom:`1px solid ${pColor.highlight}44`,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:15,color:pColor.highlight,letterSpacing:2}}>{name.toUpperCase()}</div>
+                          {totalEarned>0&&<div style={{fontSize:9,color:"#5AAF7A",background:"#0A2A1A",padding:"2px 7px",borderRadius:2,letterSpacing:1}}>+{fmt(totalEarned)} EARNED</div>}
+                        </div>
+                        <div style={{padding:"4px 0"}}>
+                          {rankings.map((w,i)=>(
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:i<4?`1px solid ${T.border}`:"none"}}>
+                              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:i===0?T.gold:`${pColor.highlight}55`,lineHeight:1,minWidth:24,textAlign:"center"}}>{i+1}</div>
+                              <div style={{flex:1}}>
+                                {w.name?<><div style={{fontSize:13,color:T.text,fontWeight:500}}>{w.name}</div>{w.notes&&<div style={{fontSize:10,color:T.textMuted,fontStyle:"italic"}}>{w.notes}</div>}</>
+                                  :<div style={{fontSize:11,color:T.textDim,fontStyle:"italic"}}>— empty —</div>}
+                              </div>
+                              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:T.gold}}>{fmtShort(RANK_BONUSES[i])}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {playerLog.length>0&&(
+                        <div style={{marginTop:6,background:T.surface2,border:`1px solid ${T.border}`,borderRadius:3,padding:"8px 12px"}}>
+                          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:6}}>BONUS HISTORY</div>
+                          {playerLog.map(entry=>(
+                            <div key={entry.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",borderBottom:`1px solid ${T.border}`}}>
+                              <div>
+                                <div style={{fontSize:11,color:T.text}}>🏆 {entry.wrestler} <span style={{color:T.textMuted,fontSize:9}}>#{entry.rank+1}</span></div>
+                                <div style={{fontSize:9,color:T.textMuted}}>{entry.date} · {entry.titleWon}</div>
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:"#5AAF7A"}}>+{fmt(entry.bonus)}</div>
+                                <button onClick={()=>deleteRankingLog(entry.id)} style={{background:"transparent",border:"none",color:T.textDim,cursor:"pointer",fontSize:10}} onMouseEnter={e=>e.target.style.color="#E06C75"} onMouseLeave={e=>e.target.style.color=T.textDim}>✕</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* DANGER ZONE */}
-            <div style={{background:T.surface,border:"1px solid #4A1A1A",borderLeft:"3px solid #C0392B",padding:"18px",borderRadius:3}}>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#C0392B",letterSpacing:3,marginBottom:6}}>⚠ DANGER ZONE</div>
-              <div style={{fontSize:11,color:T.textMuted,marginBottom:14}}>Reset the season — clears all bets and resets both stacks to $100,000. This is permanent.</div>
-              <button className="gh" style={{padding:"9px 18px",fontSize:12,borderRadius:2,borderColor:"#4A1A1A",color:"#C0392B"}} onClick={()=>setShowResetConfirm(true)}>↺ RESET SEASON</button>
+            {/* How it works */}
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderLeft:`3px solid ${T.gold}`,padding:"14px 18px",borderRadius:3}}>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:14,color:T.gold,letterSpacing:2,marginBottom:8}}>HOW IT WORKS</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12,color:T.textMuted,lineHeight:1.7}}>
+                <div>• Separate Top 5 for Men's and Women's divisions.</div>
+                <div>• Both players manage their own rosters independently.</div>
+                <div>• Any title win by a ranked wrestler triggers a bonus.</div>
+                <div>• Both players can rank the same wrestler — no penalty.</div>
+                <div>• Bonus auto-logs as a Balance Adjustment in the Ledger.</div>
+                <div>• Rank #1=$20K · #2=$15K · #3=$10K · #4=$5K · #5=$3K</div>
+              </div>
             </div>
           </div>
         )}
-      </div>
-
-      {/* ═══ ADD / EDIT BET MODAL ═══ */}
-      {showAddBet&&(
-        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${editingBet?"#6FA8DC":T.gold}`,borderRadius:4,width:"100%",maxWidth:560,maxHeight:"92vh",overflowY:"auto",padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:editingBet?"#6FA8DC":T.gold,letterSpacing:3,marginBottom:16}}>{editingBet?"✏ EDIT BET":"LOG NEW BET"}</div>
-            {!editingBet&&(
-              <div style={{display:"flex",gap:0,marginBottom:16,background:T.surface2,borderRadius:3,padding:3}}>
-                {[["h2h","⚔️ HEAD-TO-HEAD"],["solo","🎯 SOLO BET"]].map(([m,l])=>(
-                  <button key={m} onClick={()=>setForm({...form,mode:m})} style={{flex:1,padding:"9px 6px",border:"none",borderRadius:2,cursor:"pointer",fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:2,transition:"all .2s",background:form.mode===m?(m==="h2h"?"#1A2A3A":"#1A2A1A"):"transparent",color:form.mode===m?(m==="h2h"?"#6FA8DC":"#6EC98A"):T.textMuted,borderBottom:form.mode===m?`2px solid ${m==="h2h"?"#6FA8DC":"#6EC98A"}`:"2px solid transparent"}}>{l}</button>
-                ))}
-              </div>
-            )}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>DATE</label><input type="date" className="fi" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></div>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>SPORT</label><select className="fi" value={form.sport} onChange={e=>setForm({...form,sport:e.target.value})}>{SPORTS.map(s=><option key={s}>{s}</option>)}</select></div>
-              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>BET TYPE</label>
-                <select className="fi" value={form.betType} onChange={e=>{const bt=BET_TYPES.find(b=>b.label===e.target.value);setForm({...form,betType:e.target.value,payout:parseFloat(bt?.multiplier)||1});}}>
-                  {BET_TYPES.map(b=><option key={b.label}>{b.label} — {b.multiplier}</option>)}
-                </select>
-              </div>
-              {form.mode==="solo"&&!editingBet&&(
-                <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>WHO IS PLACING THIS BET?</label>
-                  <div style={{display:"flex",gap:8}}>
-                    {[["p1",state.p1Name],["p2",state.p2Name]].map(([v,n])=>(
-                      <button key={v} onClick={()=>setForm({...form,soloPlayer:v})} style={{flex:1,padding:"8px",border:`1px solid ${form.soloPlayer===v?"#6EC98A":T.border2}`,background:form.soloPlayer===v?"#1A2A1A":"transparent",color:form.soloPlayer===v?"#6EC98A":T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:13,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{n}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>BET DESCRIPTION *</label><input className="fi" placeholder="e.g. Lakers vs Celtics" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></div>
-              {form.mode==="h2h"?(
-                <>
-                  <div><label style={{fontSize:9,color:p1Color.highlight,letterSpacing:2,display:"block",marginBottom:3}}>{state.p1Name.toUpperCase()} PICK</label><input className="fi" placeholder="Their pick" value={form.p1Pick} onChange={e=>setForm({...form,p1Pick:e.target.value})}/></div>
-                  <div><label style={{fontSize:9,color:p2Color.highlight,letterSpacing:2,display:"block",marginBottom:3}}>{state.p2Name.toUpperCase()} PICK</label><input className="fi" placeholder="Their pick" value={form.p2Pick} onChange={e=>setForm({...form,p2Pick:e.target.value})}/></div>
-                </>
-              ):(
-                <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:"#6EC98A",letterSpacing:2,display:"block",marginBottom:3}}>YOUR PICK / SELECTION</label><input className="fi" placeholder="e.g. Lakers ML, Over 225.5" value={form.p1Pick} onChange={e=>setForm({...form,p1Pick:e.target.value})}/></div>
-              )}
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>WAGER AMOUNT (MM) *</label><input className="fi" placeholder="e.g. 5000" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})}/></div>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>PAYOUT MULTIPLIER</label><input className="fi" type="number" step="0.5" min="1" value={form.payout} onChange={e=>setForm({...form,payout:e.target.value})}/></div>
-              {!editingBet&&(
-                <div style={{gridColumn:"1/-1"}}>
-                  <label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>RESULT</label>
-                  {form.mode==="solo"?(
-                    <div style={{display:"flex",gap:8}}>
-                      {["Pending","Win","Loss","Push"].map(r=>{const col=r==="Win"?"#5AAF7A":r==="Loss"?"#E06C75":r==="Push"?"#666":T.gold;const active=form.soloResult===r;return<button key={r} onClick={()=>setForm({...form,soloResult:r})} style={{flex:1,padding:"7px 4px",border:`1px solid ${active?col:T.border2}`,background:active?T.surface2:"transparent",color:active?col:T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:12,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{r}</button>;})}
-                    </div>
-                  ):(
-                    <div style={{display:"flex",gap:8}}>
-                      {[["Pending",T.gold,"Pending","none"],[`${state.p1Name.slice(0,8)} W`,"#5AAF7A","Settled","p1"],[`${state.p2Name.slice(0,8)} W`,"#5AAF7A","Settled","p2"],["Push","#666","Settled","none"]].map(([label,col,res,win])=>{
-                        const active=(res==="Pending"&&form.result==="Pending")||(res==="Settled"&&form.result==="Settled"&&form.winner===win&&!(win==="none"&&label!=="Push"));
-                        return<button key={label} onClick={()=>setForm({...form,result:res,winner:win})} style={{flex:1,padding:"7px 3px",border:`1px solid ${active?col:T.border2}`,background:active?T.surface2:"transparent",color:active?col:T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:11,letterSpacing:1,cursor:"pointer",borderRadius:2,whiteSpace:"nowrap"}}>{label}</button>;
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>NOTES (optional)</label><input className="fi" placeholder="Any context..." value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:16}}>
-              <button className="bg" style={{flex:1,padding:"11px",fontSize:16,borderRadius:2}} onClick={saveBet}>{editingBet?"SAVE CHANGES":"LOG BET"}</button>
-              <button className="gh" style={{padding:"11px 16px",borderRadius:2}} onClick={()=>{setForm(blankForm);setEditingBet(null);setShowAddBet(false);}}>CANCEL</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ WWE PLE MODAL ═══ */}
-      {showPLE&&(
-        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:T.modalBg,border:"1px solid #3A1A1A",borderTop:"2px solid #9b1c1c",borderRadius:4,width:"100%",maxWidth:700,maxHeight:"92vh",overflowY:"auto",padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#F08080",letterSpacing:3,marginBottom:4}}>🤼 WWE PLE CARD BUILDER</div>
-            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Each player enters picks separately — hidden until both lock in. Stakes auto-scale by match count.</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:10,marginBottom:14}}>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>EVENT NAME *</label><input className="fi" placeholder="e.g. WrestleMania 41" value={pleForm.eventName} onChange={e=>setPleForm({...pleForm,eventName:e.target.value})}/></div>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>DATE</label><input type="date" className="fi" value={pleForm.date} onChange={e=>setPleForm({...pleForm,date:e.target.value})}/></div>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>MATCHES</label><select className="fi" style={{width:80}} value={pleForm.matchCount} onChange={e=>updatePleMatchCount(e.target.value)}>{[4,5,6,7,8].map(n=><option key={n} value={n}>{n}</option>)}</select></div>
-            </div>
-            <div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"8px 12px",borderRadius:2,marginBottom:14}}>
-              <div style={{fontSize:9,color:T.textMuted,letterSpacing:2,marginBottom:6}}>STAKE TIERS FOR {pleForm.matchCount} MATCHES</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{pleTiers.map((t,i)=><div key={t} style={{background:T.surface,border:`1px solid ${T.border}`,padding:"3px 8px",borderRadius:2,textAlign:"center"}}><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:13,color:T.gold}}>{fmtShort(t)}</div><div style={{fontSize:9,color:T.textMuted}}>M{i+1}</div></div>)}</div>
-            </div>
-            <div style={{display:"flex",gap:0,marginBottom:14,background:T.surface2,borderRadius:3,padding:3}}>
-              {[["p1",state.p1Name],["p2",state.p2Name]].map(([pl,name])=>{
-                const locked=pleForm.matches.every(m=>m[`${pl}Locked`]);
-                return<button key={pl} onClick={()=>setPleEntryPlayer(pl)} style={{flex:1,padding:"9px 6px",border:"none",borderRadius:2,cursor:"pointer",fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:2,transition:"all .2s",background:pleEntryPlayer===pl?(pl==="p1"?"#1A2A3A":"#2A1A1A"):"transparent",color:pleEntryPlayer===pl?(pl==="p1"?p1Color.highlight:p2Color.highlight):T.textMuted,borderBottom:pleEntryPlayer===pl?`2px solid ${pl==="p1"?p1Color.highlight:p2Color.highlight}`:"2px solid transparent"}}>{name} {locked?"✓ LOCKED":"— ENTERING"}</button>;
-              })}
-            </div>
-            <div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"7px 12px",borderRadius:2,marginBottom:12,fontSize:11,color:T.textMuted}}>
-              {pleEntryPlayer==="p1"?`${state.p1Name} is entering picks. ${state.p2Name}'s picks are hidden until locked.`:`${state.p2Name} is entering picks. ${state.p1Name}'s picks are hidden until locked.`}
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {pleForm.matches.map((m,i)=>{
-                const pl=pleEntryPlayer;
-                const isLocked=m[`${pl}Locked`];
-                const tier=pleTiers[i];
-                return(
-                  <div key={i} style={{background:T.surface,border:`1px solid ${isLocked?"#1A2A1A":T.border}`,padding:"11px 13px",borderRadius:3,opacity:isLocked?0.7:1}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:"#9b1c1c",letterSpacing:2}}>MATCH {i+1}</span>
-                        <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:T.gold}}>{fmtShort(tier)}</span>
-                        {isLocked&&<span style={{fontSize:9,color:"#5AAF7A",background:"#0A2A1A",padding:"2px 6px",borderRadius:2}}>LOCKED</span>}
-                      </div>
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
-                      <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:1,display:"block",marginBottom:3}}>MATCH / STIPULATION</label><input className="fi" placeholder="e.g. Cody Rhodes vs Roman Reigns" value={m.match} disabled={isLocked} onChange={e=>{const ms=[...pleForm.matches];ms[i]={...ms[i],match:e.target.value};setPleForm({...pleForm,matches:ms});}}/></div>
-                      <div><label style={{fontSize:9,color:pl==="p1"?p1Color.highlight:p2Color.highlight,letterSpacing:1,display:"block",marginBottom:3}}>YOUR PICK</label><input className="fi" placeholder="Who wins?" value={m[`${pl}Pick`]} disabled={isLocked} onChange={e=>{const ms=[...pleForm.matches];ms[i]={...ms[i],[`${pl}Pick`]:e.target.value};setPleForm({...pleForm,matches:ms});}}/></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:14}}>
-              {!pleForm.matches.every(m=>m[`${pleEntryPlayer}Locked`])&&(
-                <button style={{flex:1,padding:"11px",border:"none",borderRadius:2,cursor:"pointer",fontFamily:"'Bebas Neue',cursive",fontSize:15,letterSpacing:2,background:pleEntryPlayer==="p1"?"#1A2A3A":"#2A1A1A",color:pleEntryPlayer==="p1"?p1Color.highlight:p2Color.highlight}} onClick={()=>lockPlayerPicks(pleEntryPlayer)}>
-                  🔒 LOCK {(pleEntryPlayer==="p1"?state.p1Name:state.p2Name).toUpperCase()}'S PICKS
-                </button>
-              )}
-              {bothLocked&&<button className="bg" style={{flex:1,padding:"11px",fontSize:15,borderRadius:2}} onClick={addPLECard}>✓ SUBMIT PLE CARD</button>}
-              <button className="gh" style={{padding:"11px 14px",borderRadius:2}} onClick={()=>{setPleForm(blankPLE);setPleEntryPlayer("p1");setShowPLE(false);}}>CANCEL</button>
-            </div>
-            {!bothLocked&&<div style={{fontSize:11,color:T.textMuted,marginTop:8,textAlign:"center"}}>Both players must lock in before the card can be submitted.</div>}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ LOG SPECIAL MODE MODAL ═══ */}
-      {showLogMode&&(
-        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${T.gold}`,borderRadius:4,width:"100%",maxWidth:420,padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:T.gold,letterSpacing:3,marginBottom:16}}>⚡ LOG MODE INVOCATION</div>
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>SPECIAL MODE</label>
-                <select className="fi" value={modeLogForm.modeKey} onChange={e=>setModeLogForm({...modeLogForm,modeKey:e.target.value})}>
-                  {SPECIAL_MODES.filter(m=>m.trackPer!=="none").map(m=><option key={m.key} value={m.key}>{m.icon} {m.name}</option>)}
-                </select>
-              </div>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>INVOKED BY</label>
-                <div style={{display:"flex",gap:8}}>
-                  {[["p1",state.p1Name],["p2",state.p2Name]].map(([v,n])=>(
-                    <button key={v} onClick={()=>setModeLogForm({...modeLogForm,player:v})} style={{flex:1,padding:"8px",border:`1px solid ${modeLogForm.player===v?T.gold:T.border2}`,background:modeLogForm.player===v?T.surface2:"transparent",color:modeLogForm.player===v?T.gold:T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:13,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{n}</button>
-                  ))}
-                </div>
-              </div>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>NOTE (optional)</label><input className="fi" placeholder="e.g. Invoked before WrestleMania week" value={modeLogForm.note} onChange={e=>setModeLogForm({...modeLogForm,note:e.target.value})}/></div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:16}}>
-              <button className="bg" style={{flex:1,padding:"11px",fontSize:16,borderRadius:2}} onClick={logModeInvocation}>LOG IT</button>
-              <button className="gh" style={{padding:"11px 14px",borderRadius:2}} onClick={()=>setShowLogMode(false)}>CANCEL</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ ADJUSTMENT MODAL ═══ */}
-      {showAdjust&&(
-        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:"2px solid #6FA8DC",borderRadius:4,width:"100%",maxWidth:420,padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#6FA8DC",letterSpacing:3,marginBottom:4}}>⚖ BALANCE ADJUSTMENT</div>
-            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Manual correction or carry-over. Logged with ADJ tag. Does not count as a bet.</div>
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>ADJUST WHICH PLAYER?</label>
-                <div style={{display:"flex",gap:8}}>
-                  {[["p1",state.p1Name],["p2",state.p2Name]].map(([v,n])=>(
-                    <button key={v} onClick={()=>setAdjustForm({...adjustForm,target:v})} style={{flex:1,padding:"9px",border:`1px solid ${adjustForm.target===v?"#6FA8DC":T.border2}`,background:adjustForm.target===v?"#1A1A2A":"transparent",color:adjustForm.target===v?"#6FA8DC":T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{n}</button>
-                  ))}
-                </div>
-              </div>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>ADD OR SUBTRACT?</label>
-                <div style={{display:"flex",gap:8}}>
-                  {[["add","+ ADD","#5AAF7A"],["subtract","− SUBTRACT","#E06C75"]].map(([v,l,col])=>(
-                    <button key={v} onClick={()=>setAdjustForm({...adjustForm,direction:v})} style={{flex:1,padding:"9px",border:`1px solid ${adjustForm.direction===v?col:T.border2}`,background:adjustForm.direction===v?T.surface2:"transparent",color:adjustForm.direction===v?col:T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:16,letterSpacing:2,cursor:"pointer",borderRadius:2}}>{l}</button>
-                  ))}
-                </div>
-              </div>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>AMOUNT *</label><input className="fi" placeholder="e.g. 50000" value={adjustForm.amount} onChange={e=>setAdjustForm({...adjustForm,amount:e.target.value})}/></div>
-              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>REASON (optional)</label><input className="fi" placeholder="e.g. Carry-over from previous season" value={adjustForm.reason} onChange={e=>setAdjustForm({...adjustForm,reason:e.target.value})}/></div>
-              {adjustForm.amount&&(
-                <div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"9px 13px",borderRadius:2,fontSize:12,color:T.textMuted}}>
-                  <span style={{color:adjustForm.direction==="add"?"#5AAF7A":"#E06C75"}}>{adjustForm.direction==="add"?"+":"-"}{fmt(parseInt(String(adjustForm.amount).replace(/,/g,""))||0)}</span>
-                  {" "}to {adjustForm.target==="p1"?state.p1Name:state.p2Name}'s stack →{" "}
-                  <span style={{color:T.gold,fontFamily:"'Bebas Neue',cursive",fontSize:15}}>{fmt((adjustForm.target==="p1"?state.p1Balance:state.p2Balance)+(adjustForm.direction==="add"?1:-1)*(parseInt(String(adjustForm.amount).replace(/,/g,""))||0))}</span>
-                </div>
-              )}
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:16}}>
-              <button className="bg" style={{flex:1,padding:"11px",fontSize:16,borderRadius:2}} onClick={applyAdjustment}>APPLY</button>
-              <button className="gh" style={{padding:"11px 14px",borderRadius:2}} onClick={()=>{setAdjustForm(blankAdjust);setShowAdjust(false);}}>CANCEL</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ COLOR PICKER MODAL ═══ */}
-      {showColorPicker&&(
-        <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${T.gold}`,borderRadius:4,width:"100%",maxWidth:380,padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:T.gold,letterSpacing:3,marginBottom:4}}>🎨 CHOOSE COLOR</div>
-            <div style={{fontSize:11,color:T.textMuted,marginBottom:16}}>Pick a highlight color for {showColorPicker==="p1"?state.p1Name:state.p2Name}.</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:16}}>
-              {PLAYER_COLORS.map(c=>{
-                const current=showColorPicker==="p1"?p1Color:p2Color;
-                const active=current.highlight===c.highlight;
-                return(
-                  <button key={c.label} onClick={()=>saveColor(showColorPicker,{highlight:c.highlight,font:c.font})}
-                    style={{background:c.highlight,border:active?"3px solid #fff":"3px solid transparent",borderRadius:4,height:44,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"transform .15s",transform:active?"scale(1.1)":"scale(1)"}}>
-                    <span style={{color:c.font,fontSize:10,fontFamily:"'Bebas Neue',cursive",letterSpacing:1}}>{c.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <button className="gh" style={{width:"100%",padding:"10px",borderRadius:2,fontSize:13}} onClick={()=>setShowColorPicker(null)}>CANCEL</button>
-          </div>
-        </div>
-      )}
 
       {/* ═══ EDIT RANKINGS MODAL ═══ */}
-      {editingRankings&&(
+      {editingRankings&&(()=>{
+        const isMens = editingRankings==="mens";
+        const divColor = isMens?"#6FA8DC":"#E06C75";
+        const divLabel = isMens?"MEN'S":"WOMEN'S";
+        const myName = activePlayer==="p1"?state.p1Name:state.p2Name;
+        return(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${T.gold}`,borderRadius:4,width:"100%",maxWidth:700,maxHeight:"92vh",overflowY:"auto",padding:24}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:T.gold,letterSpacing:3,marginBottom:4}}>🏆 EDIT POWER RANKINGS</div>
-            <div style={{fontSize:11,color:T.textMuted,marginBottom:18,lineHeight:1.6}}>Set each player's Top 5 WWE roster. Add optional notes (e.g. "if turns face", "only on RAW").</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-              {[["p1",state.p1Name,p1Color],["p2",state.p2Name,p2Color]].map(([player,name,pColor])=>(
-                <div key={player}>
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:15,color:pColor.highlight,letterSpacing:2,marginBottom:10,borderBottom:`1px solid ${pColor.highlight}44`,paddingBottom:6}}>{name.toUpperCase()}'S ROSTER</div>
-                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                    {(rankForm[player]||blankRankings()).map((w,i)=>(
-                      <div key={i} style={{display:"flex",gap:8,alignItems:"center"}}>
-                        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:i===0?T.gold:`${pColor.highlight}66`,minWidth:24,textAlign:"center"}}>{i+1}</div>
-                        <div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
-                          <input className="fi" style={{fontSize:13}} placeholder={`Rank #${i+1} wrestler`} value={w.name}
-                            onChange={e=>{const updated=[...rankForm[player]];updated[i]={...updated[i],name:e.target.value};setRankForm({...rankForm,[player]:updated});}}/>
-                          <input className="fi" style={{fontSize:11,padding:"5px 10px"}} placeholder="Notes (optional)" value={w.notes||""}
-                            onChange={e=>{const updated=[...rankForm[player]];updated[i]={...updated[i],notes:e.target.value};setRankForm({...rankForm,[player]:updated});}}/>
-                        </div>
-                        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:T.gold,minWidth:32,textAlign:"right"}}>{fmtShort(RANK_BONUSES[i])}</div>
-                      </div>
-                    ))}
+          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:`2px solid ${divColor}`,borderRadius:4,width:"100%",maxWidth:460,maxHeight:"92vh",overflowY:"auto",padding:24}}>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:divColor,letterSpacing:3,marginBottom:2}}>{isMens?"💪":"👑"} {myName.toUpperCase()} — {divLabel} TOP 5</div>
+            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Your picks only. Won't affect the other player's roster.</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {rankForm.map((w,i)=>(
+                <div key={i} style={{display:"flex",gap:10,alignItems:"center"}}>
+                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:i===0?T.gold:`${divColor}77`,minWidth:24,textAlign:"center"}}>{i+1}</div>
+                  <div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
+                    <input className="fi" style={{fontSize:13}} placeholder={`Rank #${i+1} wrestler`} value={w.name}
+                      onChange={e=>{const u=[...rankForm];u[i]={...u[i],name:e.target.value};setRankForm(u);}}/>
+                    <input className="fi" style={{fontSize:11,padding:"5px 10px"}} placeholder="Notes (optional)" value={w.notes||""}
+                      onChange={e=>{const u=[...rankForm];u[i]={...u[i],notes:e.target.value};setRankForm(u);}}/>
                   </div>
+                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:13,color:T.gold,minWidth:36,textAlign:"right"}}>{fmtShort(RANK_BONUSES[i])}</div>
                 </div>
               ))}
             </div>
-            <div style={{display:"flex",gap:10,marginTop:20}}>
-              <button className="bg" style={{flex:1,padding:"11px",fontSize:16,borderRadius:2}} onClick={saveRankings}>SAVE RANKINGS</button>
-              <button className="gh" style={{padding:"11px 16px",borderRadius:2}} onClick={()=>setEditingRankings(false)}>CANCEL</button>
+            <div style={{display:"flex",gap:10,marginTop:18}}>
+              <button className="bg" style={{flex:1,padding:"11px",fontSize:15,borderRadius:2}} onClick={saveRankings}>SAVE {divLabel} RANKINGS</button>
+              <button className="gh" style={{padding:"11px 14px",borderRadius:2}} onClick={()=>setEditingRankings(null)}>CANCEL</button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ═══ CLAIM BONUS MODAL ═══ */}
       {showClaimBonus&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
-          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:"2px solid #5AAF7A",borderRadius:4,width:"100%",maxWidth:460,padding:24}}>
+          <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:"2px solid #5AAF7A",borderRadius:4,width:"100%",maxWidth:480,maxHeight:"92vh",overflowY:"auto",padding:24}}>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#5AAF7A",letterSpacing:3,marginBottom:4}}>💰 CLAIM RANKING BONUS</div>
-            <div style={{fontSize:11,color:T.textMuted,marginBottom:18,lineHeight:1.6}}>Select which player's ranked wrestler won a title, then confirm the title name.</div>
+            <div style={{fontSize:11,color:T.textMuted,marginBottom:16,lineHeight:1.6}}>Select which player, which division, which ranked wrestler won a title.</div>
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+              {/* Player */}
               <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>WHICH PLAYER?</label>
                 <div style={{display:"flex",gap:8}}>
                   {[["p1",state.p1Name,p1Color],["p2",state.p2Name,p2Color]].map(([v,n,pColor])=>(
@@ -1548,39 +1256,55 @@ export default function App() {
                   ))}
                 </div>
               </div>
+
+              {/* Division */}
+              <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>WHICH DIVISION?</label>
+                <div style={{display:"flex",gap:8}}>
+                  {[["mens","💪 MEN'S","#6FA8DC"],["womens","👑 WOMEN'S","#E06C75"]].map(([v,l,col])=>(
+                    <button key={v} onClick={()=>setClaimForm({...claimForm,division:v,rank:0})} style={{flex:1,padding:"9px",border:`1px solid ${claimForm.division===v?col:T.border2}`,background:claimForm.division===v?`${col}22`:"transparent",color:claimForm.division===v?col:T.textMuted,fontFamily:"'Bebas Neue',cursive",fontSize:14,letterSpacing:1,cursor:"pointer",borderRadius:2}}>{l}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Wrestler picker */}
               <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:5}}>WHICH RANKED WRESTLER WON?</label>
-                <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  {((claimForm.player==="p1"?state.p1Rankings:state.p2Rankings)||blankRankings()).map((w,i)=>{
-                    const active = claimForm.rank===i;
-                    const hasName = w.name && w.name.trim();
+                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  {getRankings(claimForm.player,claimForm.division).map((w,i)=>{
+                    const active=claimForm.rank===i;
+                    const hasName=w.name&&w.name.trim();
                     return(
                       <button key={i} disabled={!hasName} onClick={()=>setClaimForm({...claimForm,rank:i})}
-                        style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",border:`1px solid ${active?"#5AAF7A":T.border2}`,borderRadius:3,background:active?"#0A2A1A":"transparent",cursor:hasName?"pointer":"not-allowed",opacity:hasName?1:0.4,transition:"all .15s"}}>
+                        style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",border:`1px solid ${active?"#5AAF7A":T.border2}`,borderRadius:3,background:active?"#0A2A1A":"transparent",cursor:hasName?"pointer":"not-allowed",opacity:hasName?1:0.4,transition:"all .15s"}}>
                         <div style={{display:"flex",alignItems:"center",gap:10}}>
-                          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:active?"#5AAF7A":T.textMuted}}>{i+1}</div>
+                          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:active?"#5AAF7A":T.textMuted}}>{i+1}</div>
                           <div style={{textAlign:"left"}}>
                             <div style={{fontSize:13,color:active?"#fff":T.text}}>{hasName?w.name:"(empty)"}</div>
                             {w.notes&&<div style={{fontSize:10,color:T.textMuted}}>{w.notes}</div>}
                           </div>
                         </div>
-                        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:active?"#5AAF7A":T.gold}}>{fmtShort(RANK_BONUSES[i])}</div>
+                        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:15,color:active?"#5AAF7A":T.gold}}>{fmtShort(RANK_BONUSES[i])}</div>
                       </button>
                     );
                   })}
                 </div>
               </div>
+
+              {/* Title name */}
               <div><label style={{fontSize:9,color:T.textMuted,letterSpacing:2,display:"block",marginBottom:3}}>TITLE WON *</label>
                 <input className="fi" placeholder="e.g. WWE Championship, Women's World Title..." value={claimForm.titleWon} onChange={e=>setClaimForm({...claimForm,titleWon:e.target.value})}/>
               </div>
+
+              {/* Preview */}
               {claimForm.titleWon&&(()=>{
-                const rankings=(claimForm.player==="p1"?state.p1Rankings:state.p2Rankings)||blankRankings();
+                const rankings=getRankings(claimForm.player,claimForm.division);
                 const wrestler=rankings[claimForm.rank]?.name;
                 const bonus=RANK_BONUSES[claimForm.rank];
                 const playerName=claimForm.player==="p1"?state.p1Name:state.p2Name;
+                const divLabel=claimForm.division==="mens"?"Men's":"Women's";
                 return wrestler?(
                   <div style={{background:"#0A2A1A",border:"1px solid #1A4A1A",padding:"10px 14px",borderRadius:3,fontSize:12}}>
                     <div style={{color:"#5AAF7A",fontFamily:"'Bebas Neue',cursive",fontSize:16,letterSpacing:1}}>✓ {playerName} claims +{fmt(bonus)}</div>
-                    <div style={{color:T.textMuted,marginTop:3}}>{wrestler} (Rank #{claimForm.rank+1}) won the {claimForm.titleWon}</div>
+                    <div style={{color:T.textMuted,marginTop:3}}>{wrestler} ({divLabel} Rank #{claimForm.rank+1}) won the {claimForm.titleWon}</div>
                   </div>
                 ):null;
               })()}
@@ -1593,7 +1317,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ═══ RESET CONFIRM ═══ */}
+            {/* ═══ RESET CONFIRM ═══ */}
       {showResetConfirm&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:"1px solid #4A1A1A",borderTop:"2px solid #C0392B",borderRadius:4,width:"100%",maxWidth:340,padding:24,textAlign:"center"}}>
