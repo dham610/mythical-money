@@ -714,10 +714,10 @@ export default function App() {
 
           {/* BALANCE BAR */}
           <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,padding:"12px 0"}}>
-            <div style={{background:T.surface,border:`2px solid ${p1Lead?p1Color.highlight:T.border}`,borderRadius:3,padding:"12px 14px",position:"relative"}}>
+            <div style={{background:T.surface,border:`2px solid ${p1Color.highlight}`,borderRadius:3,padding:"12px 14px",position:"relative"}}>
               <button onClick={()=>setShowColorPicker("p1")} style={{position:"absolute",top:8,right:8,background:p1Color.highlight,border:"none",width:16,height:16,borderRadius:"50%",cursor:"pointer",opacity:0.8}} title="Change color"/>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:2}}>{state.p1Name.toUpperCase()}</div>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:p1Lead?p1Color.highlight:tied?"#888":p2Color.highlight,letterSpacing:1}}>{fmt(state.p1Balance)}</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:tied?"#888":p1Color.highlight,letterSpacing:1}}>{fmt(state.p1Balance)}</div>
               <div style={{fontSize:10,color:T.textDim,marginTop:2}}>H2H {stats.p1H2hW}W-{stats.p2H2hW}L &middot; Solo {stats.p1SW}W-{stats.p1SL}L</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 6px"}}>
@@ -725,10 +725,10 @@ export default function App() {
               {!tied&&<div style={{fontFamily:"'Bebas Neue',cursive",fontSize:10,color:T.gold,marginTop:3}}>▲{fmtShort(Math.abs(state.p1Balance-state.p2Balance))}</div>}
               {tied&&<div style={{fontSize:10,color:T.textMuted,marginTop:3}}>EVEN</div>}
             </div>
-            <div style={{background:T.surface,border:`2px solid ${!p1Lead&&!tied?p2Color.highlight:T.border}`,borderRadius:3,padding:"12px 14px",textAlign:"right",position:"relative"}}>
+            <div style={{background:T.surface,border:`2px solid ${p2Color.highlight}`,borderRadius:3,padding:"12px 14px",textAlign:"right",position:"relative"}}>
               <button onClick={()=>setShowColorPicker("p2")} style={{position:"absolute",top:8,left:8,background:p2Color.highlight,border:"none",width:16,height:16,borderRadius:"50%",cursor:"pointer",opacity:0.8}} title="Change color"/>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:2,marginBottom:2}}>{state.p2Name.toUpperCase()}</div>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:!p1Lead&&!tied?p2Color.highlight:tied?"#888":p1Color.highlight,letterSpacing:1}}>{fmt(state.p2Balance)}</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:tied?"#888":p2Color.highlight,letterSpacing:1}}>{fmt(state.p2Balance)}</div>
               <div style={{fontSize:10,color:T.textDim,marginTop:2}}>H2H {stats.p2H2hW}W-{stats.p1H2hW}L &middot; Solo {stats.p2SW}W-{stats.p2SL}L</div>
             </div>
           </div>
