@@ -104,7 +104,6 @@ function exportCSV(bets, p1Name, p2Name) {
 function parseCSV(text) {
   const lines = text.trim().split("\n");
   if (lines.length < 2) return [];
-  const headers = lines[0].split(",");
   return lines.slice(1).map((line, i) => {
     const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || [];
     const clean = vals.map(v => v.replace(/^"|"$/g, "").replace(/""/g, '"'));
