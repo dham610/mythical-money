@@ -63,6 +63,7 @@ const THEMES = {
     border: "#1A1A1A", border2: "#2A2A2A",
     text: "#E8E4DC", textMuted: "#444444", textDim: "#2A2A2A",
     gold: "#D4A017", goldBright: "#F5C842",
+    titleFrom: "#F5C842", titleTo: "#D4A017",
     inputBg: "#111111", inputBorder: "#2A2A2A",
     scrollTrack: "#111", scrollThumb: "#333",
     modalBg: "#0D0D0D", modalOverlay: "rgba(0,0,0,0.9)",
@@ -74,6 +75,7 @@ const THEMES = {
     border: "#2D3748", border2: "#374151",
     text: "#E2E8F0", textMuted: "#64748B", textDim: "#374151",
     gold: "#F0B429", goldBright: "#FBBF24",
+    titleFrom: "#FBBF24", titleTo: "#F0B429",
     inputBg: "#1A2332", inputBorder: "#2D3748",
     scrollTrack: "#1F2937", scrollThumb: "#374151",
     modalBg: "#1A2332", modalOverlay: "rgba(0,0,0,0.85)",
@@ -85,6 +87,7 @@ const THEMES = {
     border: "#E5DDD0", border2: "#D4C9B8",
     text: "#1A1208", textMuted: "#786A52", textDim: "#C9BAA4",
     gold: "#B8860B", goldBright: "#D4A017",
+    titleFrom: "#8B6914", titleTo: "#3A2600",
     inputBg: "#FFFFFF", inputBorder: "#D4C9B8",
     scrollTrack: "#F3EFE6", scrollThumb: "#D4C9B8",
     modalBg: "#FFFFFF", modalOverlay: "rgba(0,0,0,0.5)",
@@ -96,6 +99,7 @@ const THEMES = {
     border: "#3D1F6E", border2: "#552583",
     text: "#FDB927", textMuted: "#9B72CF", textDim: "#3D1F6E",
     gold: "#FDB927", goldBright: "#FFD04D",
+    titleFrom: "#FFD04D", titleTo: "#FDB927",
     inputBg: "#1F0F40", inputBorder: "#552583",
     scrollTrack: "#1A0A2E", scrollThumb: "#552583",
     modalBg: "#1F0F40", modalOverlay: "rgba(10,0,20,0.92)",
@@ -107,6 +111,7 @@ const THEMES = {
     border: "#004D22", border2: "#007A33",
     text: "#FFFFFF", textMuted: "#5DAF7A", textDim: "#004D22",
     gold: "#BA9653", goldBright: "#D4AF6A",
+    titleFrom: "#FFFFFF", titleTo: "#D4AF6A",
     inputBg: "#00240F", inputBorder: "#007A33",
     scrollTrack: "#001A0A", scrollThumb: "#007A33",
     modalBg: "#001E0C", modalOverlay: "rgba(0,10,4,0.92)",
@@ -118,6 +123,7 @@ const THEMES = {
     border: "#003580", border2: "#005A9C",
     text: "#FFFFFF", textMuted: "#6FA8DC", textDim: "#003580",
     gold: "#EF3E42", goldBright: "#FF6B6E",
+    titleFrom: "#FFFFFF", titleTo: "#6FA8DC",
     inputBg: "#001A42", inputBorder: "#005A9C",
     scrollTrack: "#001433", scrollThumb: "#005A9C",
     modalBg: "#001A42", modalOverlay: "rgba(0,10,30,0.92)",
@@ -129,10 +135,71 @@ const THEMES = {
     border: "#2A2448", border2: "#3D366A",
     text: "#FFFFFF", textMuted: "#BD3039", textDim: "#2A2448",
     gold: "#BD3039", goldBright: "#E04550",
+    titleFrom: "#FFFFFF", titleTo: "#E04550",
     inputBg: "#141228", inputBorder: "#3D366A",
     scrollTrack: "#0C1020", scrollThumb: "#3D366A",
     modalBg: "#141228", modalOverlay: "rgba(5,5,15,0.92)",
     rowHover: "#201E38",
+  },
+  bloodline: {
+    name: "Bloodline", icon: "🩸",
+    bg: "#0A0000", surface: "#180808", surface2: "#120606",
+    border: "#3A0A0A", border2: "#5A1010",
+    text: "#F0E0DC", textMuted: "#8A4040", textDim: "#3A1010",
+    gold: "#C0392B", goldBright: "#E74C3C",
+    titleFrom: "#E74C3C", titleTo: "#8B0000",
+    inputBg: "#120606", inputBorder: "#5A1010",
+    scrollTrack: "#0A0000", scrollThumb: "#5A1010",
+    modalBg: "#120606", modalOverlay: "rgba(10,0,0,0.93)",
+    rowHover: "#1C0808",
+  },
+  trick: {
+    name: "Trick", icon: "🤍",
+    bg: "#F0F0F0", surface: "#FFFFFF", surface2: "#E8E8E8",
+    border: "#D0D0D0", border2: "#B8B8B8",
+    text: "#111111", textMuted: "#555555", textDim: "#C0C0C0",
+    gold: "#111111", goldBright: "#333333",
+    titleFrom: "#111111", titleTo: "#555555",
+    inputBg: "#FFFFFF", inputBorder: "#C0C0C0",
+    scrollTrack: "#E8E8E8", scrollThumb: "#C0C0C0",
+    modalBg: "#FFFFFF", modalOverlay: "rgba(0,0,0,0.45)",
+    rowHover: "#F0F0F0",
+  },
+  seth: {
+    name: "Seth", icon: "👁️",
+    bg: "#050510", surface: "#0D0D22", surface2: "#080818",
+    border: "#1A1A40", border2: "#2A2A60",
+    text: "#E0E0FF", textMuted: "#6060A0", textDim: "#1A1A40",
+    gold: "#FF4500", goldBright: "#FF6B35",
+    titleFrom: "#FF6B35", titleTo: "#CC2200",
+    inputBg: "#080818", inputBorder: "#2A2A60",
+    scrollTrack: "#050510", scrollThumb: "#2A2A60",
+    modalBg: "#080818", modalOverlay: "rgba(2,2,15,0.93)",
+    rowHover: "#10102A",
+  },
+  dominik: {
+    name: "Dominik", icon: "😈",
+    bg: "#080812", surface: "#10101E", surface2: "#0C0C18",
+    border: "#1E1E3A", border2: "#2A2A50",
+    text: "#D0D0F0", textMuted: "#505080", textDim: "#1E1E3A",
+    gold: "#8A2BE2", goldBright: "#A855F7",
+    titleFrom: "#A855F7", titleTo: "#6D28D9",
+    inputBg: "#0C0C18", inputBorder: "#2A2A50",
+    scrollTrack: "#080812", scrollThumb: "#2A2A50",
+    modalBg: "#0C0C18", modalOverlay: "rgba(4,4,12,0.93)",
+    rowHover: "#141428",
+  },
+  becky: {
+    name: "Becky", icon: "🔥",
+    bg: "#0F0500", surface: "#1E0C00", surface2: "#180800",
+    border: "#3A1800", border2: "#5C2800",
+    text: "#FFE4C4", textMuted: "#9A5020", textDim: "#3A1800",
+    gold: "#FF6B00", goldBright: "#FF8C00",
+    titleFrom: "#FF8C00", titleTo: "#CC4400",
+    inputBg: "#180800", inputBorder: "#5C2800",
+    scrollTrack: "#0F0500", scrollThumb: "#5C2800",
+    modalBg: "#180800", modalOverlay: "rgba(10,4,0,0.93)",
+    rowHover: "#221000",
   },
 };
 
@@ -605,14 +672,15 @@ export default function App() {
         .sb{background:transparent;border:1px solid;font-size:11px;padding:3px 7px;border-radius:2px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap}
         .pill{display:inline-flex;align-items:center;font-size:10px;padding:2px 8px;border-radius:10px;font-family:'Bebas Neue',cursive;letter-spacing:1px}
         select.fi option{background:${T.inputBg};color:${T.text}}
-      `}</style>
+        .mm-title{font-family:'Bebas Neue',cursive;font-size:32px;background:linear-gradient(135deg,${T.titleFrom},${T.titleTo});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:3px;line-height:1}
+      \`}</style>
 
       {/* HEADER */}
       <div style={{borderBottom:`1px solid ${T.border}`,padding:"0 20px"}}>
         <div style={{maxWidth:1100,margin:"0 auto"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 0 0",flexWrap:"wrap",gap:8}}>
             <div>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,background:`linear-gradient(135deg,${T.goldBright},${T.gold})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:3,lineHeight:1}}>MYTHICAL MONEY</div>
+              <div className="mm-title">MYTHICAL MONEY</div>
               <div style={{fontSize:10,color:T.textMuted,letterSpacing:3,marginTop:2}}>SEASON {state.season} · RESETS AFTER NBA FINALS</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
