@@ -673,7 +673,7 @@ export default function App() {
         .pill{display:inline-flex;align-items:center;font-size:10px;padding:2px 8px;border-radius:10px;font-family:'Bebas Neue',cursive;letter-spacing:1px}
         select.fi option{background:${T.inputBg};color:${T.text}}
         .mm-title{font-family:'Bebas Neue',cursive;font-size:32px;background:linear-gradient(135deg,${T.titleFrom},${T.titleTo});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:3px;line-height:1}
-      \`}</style>
+      `}</style>
 
       {/* HEADER */}
       <div style={{borderBottom:`1px solid ${T.border}`,padding:"0 20px"}}>
