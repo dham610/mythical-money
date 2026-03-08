@@ -191,7 +191,7 @@ const THEMES = {
 };
 
 const RANK_BONUSES = [20000, 15000, 10000, 5000, 3000];
-const blankRankings = () => Array(5).fill(null).map(()=>({name:"", notes:""}));
+const blankRankings = () => Array(5).fill(null).map(()=>({name:"", notes:"", wikipediaImg:""}));
 
 const initialState = {
   p1Name: "Player 1", p2Name: "Player 2",
@@ -334,6 +334,19 @@ export default function App() {
   const [editingRankings, setEditingRankings] = useState(null);
   const [rankForm, setRankForm] = useState(blankRankings());
   const [showClaimBonus, setShowClaimBonus] = useState(false);
+  const [hoveredWrestler, setHoveredWrestler] = useState(null); // {name, img, x, y}
+  const fetchWikipediaImg = async (name, idx) => {
+    if (!name.trim()) return;
+    try {
+      const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(name)}&prop=pageimages&format=json&pithumbsize=300&origin=*`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const pages = data.query.pages;
+      const page = pages[Object.keys(pages)[0]];
+      const img = page?.thumbnail?.source || "";
+      setRankForm(prev => { const u=[...prev]; u[idx]={...u[idx], wikipediaImg:img}; return u; });
+    } catch(e) { /* silent fail */ }
+  };
   const blankClaim = { player:"p1", division:"mens", rank:0, titleWon:"" };
   const [claimForm, setClaimForm] = useState(blankClaim);
 
@@ -1015,7 +1028,7 @@ export default function App() {
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                 <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#6FA8DC",letterSpacing:3}}>&#x1F4AA; MEN&apos;S DIVISION</div>
-                <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#1A2A3A",color:"#6FA8DC"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"mens")]);setEditingRankings("mens");}}>&#x270F; EDIT MY MENS TOP 5</button>
+                <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#1A2A3A",color:"#6FA8DC"}} onClick={()=>{setRankForm(getRankings(activePlayer,"mens").map(w=>({name:w.name||"",notes:w.notes||"",wikipediaImg:w.wikipediaImg||""})));setEditingRankings("mens");}}>&#x270F; EDIT MY MENS TOP 5</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[["p1",state.p1Name,p1Color],["p2",state.p2Name,p2Color]].map(([player,name,pColor])=>{
@@ -1034,7 +1047,11 @@ export default function App() {
                             <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:i<4?`1px solid ${T.border}`:"none"}}>
                               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:i===0?T.gold:`${pColor.highlight}55`,lineHeight:1,minWidth:24,textAlign:"center"}}>{i+1}</div>
                               <div style={{flex:1}}>
-                                {w.name?(<><div style={{fontSize:13,color:T.text,fontWeight:500}}>{w.name}</div>{w.notes&&<div style={{fontSize:10,color:T.textMuted,fontStyle:"italic"}}>{w.notes}</div>}</>):<div style={{fontSize:11,color:T.textDim,fontStyle:"italic"}}>empty</div>}
+                                {w.name?(<><div
+                                  style={{fontSize:13,color:T.text,fontWeight:500,cursor:"default",display:"inline-block"}}
+                                  onMouseEnter={e=>{const r=e.currentTarget.getBoundingClientRect();setHoveredWrestler({name:w.name,img:w.wikipediaImg,x:r.left,y:r.top});}}
+                                  onMouseLeave={()=>setHoveredWrestler(null)}
+                                >{w.name}</div>{w.notes&&<div style={{fontSize:10,color:T.textMuted,fontStyle:"italic"}}>{w.notes}</div>}</>):<div style={{fontSize:11,color:T.textDim,fontStyle:"italic"}}>empty</div>}
                               </div>
                               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:T.gold}}>{fmtShort(RANK_BONUSES[i])}</div>
                             </div>
@@ -1066,7 +1083,7 @@ export default function App() {
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                 <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:17,color:"#E06C75",letterSpacing:3}}>&#x1F451; WOMEN&apos;S DIVISION</div>
-                <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#3A1A2A",color:"#E06C75"}} onClick={()=>{setRankForm([...getRankings(activePlayer,"womens")]);setEditingRankings("womens");}}>&#x270F; EDIT MY WOMENS TOP 5</button>
+                <button className="gh" style={{padding:"6px 14px",fontSize:11,borderRadius:2,borderColor:"#3A1A2A",color:"#E06C75"}} onClick={()=>{setRankForm(getRankings(activePlayer,"womens").map(w=>({name:w.name||"",notes:w.notes||"",wikipediaImg:w.wikipediaImg||""})));setEditingRankings("womens");}}>&#x270F; EDIT MY WOMENS TOP 5</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {[["p1",state.p1Name,p1Color],["p2",state.p2Name,p2Color]].map(([player,name,pColor])=>{
@@ -1085,7 +1102,11 @@ export default function App() {
                             <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",borderBottom:i<4?`1px solid ${T.border}`:"none"}}>
                               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:i===0?T.gold:`${pColor.highlight}55`,lineHeight:1,minWidth:24,textAlign:"center"}}>{i+1}</div>
                               <div style={{flex:1}}>
-                                {w.name?(<><div style={{fontSize:13,color:T.text,fontWeight:500}}>{w.name}</div>{w.notes&&<div style={{fontSize:10,color:T.textMuted,fontStyle:"italic"}}>{w.notes}</div>}</>):<div style={{fontSize:11,color:T.textDim,fontStyle:"italic"}}>empty</div>}
+                                {w.name?(<><div
+                                  style={{fontSize:13,color:T.text,fontWeight:500,cursor:"default",display:"inline-block"}}
+                                  onMouseEnter={e=>{const r=e.currentTarget.getBoundingClientRect();setHoveredWrestler({name:w.name,img:w.wikipediaImg,x:r.left,y:r.top});}}
+                                  onMouseLeave={()=>setHoveredWrestler(null)}
+                                >{w.name}</div>{w.notes&&<div style={{fontSize:10,color:T.textMuted,fontStyle:"italic"}}>{w.notes}</div>}</>):<div style={{fontSize:11,color:T.textDim,fontStyle:"italic"}}>empty</div>}
                               </div>
                               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:12,color:T.gold}}>{fmtShort(RANK_BONUSES[i])}</div>
                             </div>
@@ -1477,7 +1498,7 @@ export default function App() {
                   <div key={i} style={{display:"flex",gap:10,alignItems:"center"}}>
                     <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:i===0?T.gold:`${divColor}77`,minWidth:24,textAlign:"center"}}>{i+1}</div>
                     <div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
-                      <input className="fi" style={{fontSize:13}} placeholder={`Rank #${i+1} wrestler`} value={w.name} onChange={e=>{const u=[...rankForm];u[i]={...u[i],name:e.target.value};setRankForm(u);}}/>
+                      <input className="fi" style={{fontSize:13}} placeholder={`Rank #${i+1} wrestler`} value={w.name} onChange={e=>{const u=[...rankForm];u[i]={...u[i],name:e.target.value};setRankForm(u);}} onBlur={e=>fetchWikipediaImg(e.target.value,i)}/>
                       <input className="fi" style={{fontSize:11,padding:"5px 10px"}} placeholder="Notes (optional)" value={w.notes||""} onChange={e=>{const u=[...rankForm];u[i]={...u[i],notes:e.target.value};setRankForm(u);}}/>
                     </div>
                     <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:13,color:T.gold,minWidth:36,textAlign:"right"}}>{fmtShort(RANK_BONUSES[i])}</div>
@@ -1494,6 +1515,12 @@ export default function App() {
       })()}
 
       {/* CLAIM BONUS MODAL */}
+      {hoveredWrestler&&hoveredWrestler.img&&(
+        <div style={{position:"fixed",left:hoveredWrestler.x,top:hoveredWrestler.y-180,zIndex:200,pointerEvents:"none",background:"#0A0A0A",border:"1px solid #D4A017",borderRadius:6,padding:8,boxShadow:"0 4px 24px rgba(0,0,0,0.8)",textAlign:"center",minWidth:140}}>
+          <img src={hoveredWrestler.img} alt={hoveredWrestler.name} style={{width:130,height:160,objectFit:"cover",borderRadius:4,display:"block"}}/>
+          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:13,color:"#D4A017",letterSpacing:2,marginTop:5}}>{hoveredWrestler.name}</div>
+        </div>
+      )}
       {showClaimBonus&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:`1px solid ${T.border2}`,borderTop:"2px solid #5AAF7A",borderRadius:4,width:"100%",maxWidth:480,maxHeight:"92vh",overflowY:"auto",padding:24}}>
