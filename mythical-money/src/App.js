@@ -400,6 +400,20 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  const [archives, setArchives] = useState({});
+  const [showArchives, setShowArchives] = useState(false);
+  const [archiveImportYear, setArchiveImportYear] = useState(new Date().getFullYear()-1);
+  const [archiveImportStatus, setArchiveImportStatus] = useState("");
+
+  useEffect(() => {
+    const archRef = ref(db, "archives");
+    const unsub = onValue(archRef, (snapshot) => {
+      const data = snapshot.val();
+      setArchives(data || {});
+    });
+    return () => unsub();
+  }, []);
+
   const saveToFirebase = useCallback(async (ns) => {
     setSaveStatus("saving");
     try { await set(ref(db, DB_KEY), ns); setSaveStatus("saved"); }
@@ -562,7 +576,20 @@ export default function App() {
     updateState((prev) => { const remaining=(prev.bets||[]).filter(b=>b.id!==id); const{p1,p2}=recalcBalances(remaining); return{...prev,bets:remaining,p1Balance:p1,p2Balance:p2}; });
   };
 
-  const resetSeason = () => { updateState({...initialState,p1Name:state.p1Name,p2Name:state.p2Name,p1Color:state.p1Color,p2Color:state.p2Color,season:new Date().getFullYear()}); setShowResetConfirm(false); };
+  const resetSeason = async () => {
+    const yearKey = String(state.season || new Date().getFullYear());
+    const snapshot = {
+      season: yearKey,
+      p1Name: state.p1Name, p2Name: state.p2Name,
+      p1FinalBalance: state.p1Balance, p2FinalBalance: state.p2Balance,
+      winner: state.p1Balance > state.p2Balance ? "p1" : state.p2Balance > state.p1Balance ? "p2" : "tie",
+      bets: state.bets || [],
+      archivedAt: nowTimestamp(),
+    };
+    try { await set(ref(db, "archives/" + yearKey), snapshot); } catch(_) {}
+    updateState({...initialState,p1Name:state.p1Name,p2Name:state.p2Name,p1Color:state.p1Color,p2Color:state.p2Color,season:new Date().getFullYear()});
+    setShowResetConfirm(false);
+  };
   const saveNames = () => { updateState((prev)=>({...prev,p1Name:nameForm.p1||prev.p1Name,p2Name:nameForm.p2||prev.p2Name})); };
   const saveColor = (player, color) => { updateState((prev)=>({...prev,[`${player}Color`]:color})); setShowColorPicker(null); };
 
@@ -578,6 +605,33 @@ export default function App() {
         return{...prev,bets:all,p1Balance:p1,p2Balance:p2};
       });
       alert(`Imported ${imported.length} bets.`);
+    };
+    reader.readAsText(file);
+    e.target.value="";
+  };
+
+  const handleArchiveImport = (e) => {
+    const file=e.target.files[0]; if(!file) return;
+    const yearKey = String(archiveImportYear);
+    const reader=new FileReader();
+    reader.onload=async (ev)=>{
+      const imported=parseCSV(ev.target.result);
+      if(!imported.length){setArchiveImportStatus("No valid bets found.");return;}
+      const {p1,p2}=recalcBalances(imported);
+      const snapshot={
+        season:yearKey,
+        p1Name:state.p1Name, p2Name:state.p2Name,
+        p1FinalBalance:p1, p2FinalBalance:p2,
+        winner:p1>p2?"p1":p2>p1?"p2":"tie",
+        bets:imported,
+        archivedAt:nowTimestamp(),
+        importedManually:true,
+      };
+      try {
+        await set(ref(db,"archives/"+yearKey),snapshot);
+        setArchiveImportStatus(`Season ${yearKey} archived — ${imported.length} bets.`);
+        setTimeout(()=>setArchiveImportStatus(""),4000);
+      } catch(_){ setArchiveImportStatus("Firebase error — check rules."); }
     };
     reader.readAsText(file);
     e.target.value="";
@@ -948,6 +1002,156 @@ export default function App() {
             )}
           </div>
         )}
+
+
+        {/* ARCHIVES + ALL-TIME STATS */}
+        {tab==="stats"&&(()=>{
+          const archiveYears=Object.keys(archives).sort((a,b)=>b-a);
+          const allBets=[...bets.filter(b=>!b.isAdjustment&&!b.isBonus),...archiveYears.flatMap(y=>(archives[y].bets||[]).filter(b=>!b.isAdjustment&&!b.isBonus))];
+          const p1n=state.p1Name; const p2n=state.p2Name;
+          const atP1H2hW=allBets.filter(b=>b.winner==="p1").length;
+          const atP2H2hW=allBets.filter(b=>b.winner==="p2").length;
+          const atP1SW=allBets.filter(b=>b.mode==="solo"&&b.soloPlayer==="p1"&&b.result==="Win").length;
+          const atP2SW=allBets.filter(b=>b.mode==="solo"&&b.soloPlayer==="p2"&&b.result==="Win").length;
+          const atP1SL=allBets.filter(b=>b.mode==="solo"&&b.soloPlayer==="p1"&&b.result==="Loss").length;
+          const atP2SL=allBets.filter(b=>b.mode==="solo"&&b.soloPlayer==="p2"&&b.result==="Loss").length;
+          const allWagered=allBets.reduce((s,b2)=>s+(b2.amount||0),0);
+          const biggestBet=allBets.filter(b=>b.amount>0).sort((a,b2)=>b2.amount-a.amount)[0];
+          const biggestWin=allBets.filter(b=>b.result==="Win"||b.winner==="p1"||b.winner==="p2").sort((a,b2)=>b2.amount-a.amount)[0];
+          const biggestLoss=allBets.filter(b=>b.result==="Loss").sort((a,b2)=>b2.amount-a.amount)[0];
+          const p1Trophies=archiveYears.filter(y=>archives[y].winner==="p1").length;
+          const p2Trophies=archiveYears.filter(y=>archives[y].winner==="p2").length;
+          const sportTotals={};
+          allBets.forEach(b=>{if(!sportTotals[b.sport])sportTotals[b.sport]=0;sportTotals[b.sport]+=(b.amount||0);});
+          const topSport=Object.entries(sportTotals).sort((a,b2)=>b2[1]-a[1])[0];
+          const h2hAll=allBets.filter(b=>b.mode==="h2h"&&(b.winner==="p1"||b.winner==="p2")).sort((a,b2)=>(a.timestamp||a.date||"").localeCompare(b2.timestamp||b2.date||""));
+          let p1Best=0,p1Cur=0,p2Best=0,p2Cur=0;
+          h2hAll.forEach(b=>{if(b.winner==="p1"){p1Cur++;p2Cur=0;p1Best=Math.max(p1Best,p1Cur);}else{p2Cur++;p1Cur=0;p2Best=Math.max(p2Best,p2Cur);}});
+          const atCard=(l,v,full)=>(
+            <div key={l} style={{gridColumn:full?"1/-1":undefined,background:T.surface2,border:`1px solid ${T.border}`,padding:"12px",borderRadius:3}}>
+              <div style={{fontSize:9,color:T.textMuted,letterSpacing:2,marginBottom:4}}>{l.toUpperCase()}</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:full?20:24,color:T.gold,letterSpacing:1}}>{v}</div>
+            </div>
+          );
+          return(
+            <div style={{marginTop:16}}>
+              <div style={{background:T.surface,border:`1px solid ${T.border}`,borderTop:`2px solid ${T.gold}`,borderRadius:3,marginBottom:12}}>
+                <div style={{padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>setShowArchives(s=>({...s,alltime:!s.alltime}))}>
+                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:T.gold,letterSpacing:2}}>🏆 ALL-TIME STATS ({archiveYears.length} ARCHIVED + CURRENT)</div>
+                  <div style={{color:T.textMuted,fontSize:12}}>{showArchives.alltime?"▲":"▼"}</div>
+                </div>
+                {showArchives.alltime&&(
+                  <div style={{padding:"0 16px 16px"}}>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                      {atCard("Season Trophies",`${p1n}: ${p1Trophies} 🏆  |  ${p2n}: ${p2Trophies} 🏆`,true)}
+                      {atCard(`${p1n} All-Time H2H`,`${atP1H2hW}W — ${atP2H2hW}L`)}
+                      {atCard(`${p2n} All-Time H2H`,`${atP2H2hW}W — ${atP1H2hW}L`)}
+                      {atCard(`${p1n} All-Time Solo`,`${atP1SW}W — ${atP1SL}L`)}
+                      {atCard(`${p2n} All-Time Solo`,`${atP2SW}W — ${atP2SL}L`)}
+                      {atCard("Total Ever Wagered",fmt(allWagered),true)}
+                      {atCard(`${p1n} Best Win Streak`,`${p1Best} in a row`)}
+                      {atCard(`${p2n} Best Win Streak`,`${p2Best} in a row`)}
+                      {atCard("Top Sport by Volume",topSport?`${topSport[0]} (${fmt(topSport[1])})`:"-",true)}
+                    </div>
+                    {biggestBet&&<div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"12px",borderRadius:3,marginBottom:8}}>
+                      <div style={{fontSize:9,color:T.textMuted,letterSpacing:2,marginBottom:4}}>BIGGEST BET EVER PLACED</div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div><div style={{fontSize:13,color:T.text}}>{biggestBet.description}</div><div style={{fontSize:10,color:T.textMuted}}>{biggestBet.date} · {biggestBet.sport}</div></div>
+                        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:T.gold,whiteSpace:"nowrap",marginLeft:8}}>{fmt(biggestBet.amount)}</div>
+                      </div>
+                    </div>}
+                    {biggestWin&&<div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"12px",borderRadius:3,marginBottom:8}}>
+                      <div style={{fontSize:9,color:T.textMuted,letterSpacing:2,marginBottom:4}}>BIGGEST WIN EVER</div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div><div style={{fontSize:13,color:T.text}}>{biggestWin.description}</div><div style={{fontSize:10,color:T.textMuted}}>{biggestWin.date} · {biggestWin.sport}</div></div>
+                        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#5AAF7A",whiteSpace:"nowrap",marginLeft:8}}>{fmt(biggestWin.amount)}</div>
+                      </div>
+                    </div>}
+                    {biggestLoss&&<div style={{background:T.surface2,border:`1px solid ${T.border}`,padding:"12px",borderRadius:3}}>
+                      <div style={{fontSize:9,color:T.textMuted,letterSpacing:2,marginBottom:4}}>BIGGEST LOSS EVER</div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div><div style={{fontSize:13,color:T.text}}>{biggestLoss.description}</div><div style={{fontSize:10,color:T.textMuted}}>{biggestLoss.date} · {biggestLoss.sport}</div></div>
+                        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#E06C75",whiteSpace:"nowrap",marginLeft:8}}>{fmt(biggestLoss.amount)}</div>
+                      </div>
+                    </div>}
+                  </div>
+                )}
+              </div>
+              <div style={{background:T.surface,border:`1px solid ${T.border}`,borderTop:"2px solid #6FA8DC",borderRadius:3,marginBottom:12}}>
+                <div style={{padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>setShowArchives(s=>({...s,list:!s.list}))}>
+                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#6FA8DC",letterSpacing:2}}>📦 SEASON ARCHIVES ({archiveYears.length})</div>
+                  <div style={{color:T.textMuted,fontSize:12}}>{showArchives.list?"▲":"▼"}</div>
+                </div>
+                {showArchives.list&&(
+                  <div style={{padding:"0 16px 16px"}}>
+                    {archiveYears.length===0&&<div style={{fontSize:12,color:T.textMuted,padding:"8px 0"}}>No archived seasons yet. Import past seasons below, or seasons auto-archive when you reset.</div>}
+                    {archiveYears.map(y=>{
+                      const arc=archives[y];
+                      const arcBets=(arc.bets||[]).filter(b=>!b.isAdjustment&&!b.isBonus);
+                      const arcP1W=arcBets.filter(b=>b.winner==="p1").length;
+                      const arcP2W=arcBets.filter(b=>b.winner==="p2").length;
+                      const arcP1Solo=arcBets.filter(b=>b.mode==="solo"&&b.soloPlayer==="p1"&&b.result==="Win").length;
+                      const arcP2Solo=arcBets.filter(b=>b.mode==="solo"&&b.soloPlayer==="p2"&&b.result==="Win").length;
+                      const arcBig=arcBets.filter(b=>b.amount>0).sort((a,b2)=>b2.amount-a.amount)[0];
+                      const winnerName=arc.winner==="p1"?arc.p1Name:arc.winner==="p2"?arc.p2Name:"TIE";
+                      const isOpen=showArchives["yr_"+y];
+                      return(
+                        <div key={y} style={{border:`1px solid ${T.border}`,borderRadius:3,marginBottom:8,overflow:"hidden"}}>
+                          <div style={{background:T.surface2,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>setShowArchives(s=>({...s,["yr_"+y]:!s["yr_"+y]}))}>
+                            <div style={{display:"flex",alignItems:"center",gap:10}}>
+                              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,letterSpacing:2}}>SEASON {y}</div>
+                              <div style={{fontSize:10,background:"#1A3A1A",color:"#5AAF7A",padding:"2px 8px",borderRadius:2,letterSpacing:1}}>🏆 {winnerName.toUpperCase()}</div>
+                              {arc.importedManually&&<div style={{fontSize:9,color:T.textDim,letterSpacing:1}}>IMPORTED</div>}
+                            </div>
+                            <div style={{color:T.textMuted,fontSize:12}}>{isOpen?"▲":"▼"}</div>
+                          </div>
+                          {isOpen&&(
+                            <div style={{padding:"12px 14px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                              {[
+                                {l:`${arc.p1Name} Final`,v:fmt(arc.p1FinalBalance||0)},
+                                {l:`${arc.p2Name} Final`,v:fmt(arc.p2FinalBalance||0)},
+                                {l:`${arc.p1Name} H2H`,v:`${arcP1W}W — ${arcP2W}L`},
+                                {l:`${arc.p2Name} H2H`,v:`${arcP2W}W — ${arcP1W}L`},
+                                {l:`${arc.p1Name} Solo W`,v:arcP1Solo},
+                                {l:`${arc.p2Name} Solo W`,v:arcP2Solo},
+                                {l:"Total Bets",v:arcBets.length},
+                                {l:"Total Wagered",v:fmt(arcBets.reduce((s,b2)=>s+(b2.amount||0),0))},
+                              ].map((s,i)=>(
+                                <div key={i} style={{background:T.surface,border:`1px solid ${T.border}`,padding:"10px 12px",borderRadius:3}}>
+                                  <div style={{fontSize:9,color:T.textMuted,letterSpacing:2,marginBottom:3}}>{s.l.toUpperCase()}</div>
+                                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:T.gold}}>{s.v}</div>
+                                </div>
+                              ))}
+                              {arcBig&&<div style={{gridColumn:"1/-1",background:T.surface,border:`1px solid ${T.border}`,padding:"10px 12px",borderRadius:3}}>
+                                <div style={{fontSize:9,color:T.textMuted,letterSpacing:2,marginBottom:3}}>BIGGEST BET</div>
+                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                  <div style={{fontSize:12,color:T.text}}>{arcBig.description}</div>
+                                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:T.gold,whiteSpace:"nowrap",marginLeft:8}}>{fmt(arcBig.amount)}</div>
+                                </div>
+                              </div>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <div style={{marginTop:12,padding:"14px",background:T.surface2,border:`1px solid ${T.border}`,borderRadius:3}}>
+                      <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:13,color:T.textMuted,letterSpacing:2,marginBottom:10}}>IMPORT PAST SEASON</div>
+                      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                        <div style={{fontSize:11,color:T.textMuted}}>Season Year:</div>
+                        <input className="fi" type="number" value={archiveImportYear} onChange={e=>setArchiveImportYear(Number(e.target.value))} style={{width:80,fontSize:13,padding:"5px 8px"}}/>
+                        <label className="gh" style={{padding:"7px 14px",fontSize:12,borderRadius:2,cursor:"pointer",display:"inline-block",border:`1px solid ${T.border2}`,color:T.textMuted}}>
+                          ↑ Import CSV<input type="file" accept=".csv" style={{display:"none"}} onChange={handleArchiveImport}/>
+                        </label>
+                      </div>
+                      {archiveImportStatus&&<div style={{fontSize:11,color:"#5AAF7A",marginTop:8}}>{archiveImportStatus}</div>}
+                      <div style={{fontSize:10,color:T.textDim,marginTop:8}}>Same CSV format as current season. Final balances auto-calculated from bet history.</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* SPECIAL MODES */}
         {tab==="modes"&&(
@@ -1590,10 +1794,10 @@ export default function App() {
       {showResetConfirm&&(
         <div style={{position:"fixed",inset:0,background:T.modalOverlay,display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}}>
           <div style={{background:T.modalBg,border:"1px solid #4A1A1A",borderTop:"2px solid #C0392B",borderRadius:4,width:"100%",maxWidth:340,padding:24,textAlign:"center"}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#C0392B",letterSpacing:3,marginBottom:8}}>RESET SEASON?</div>
-            <div style={{fontSize:12,color:T.textMuted,marginBottom:20,lineHeight:1.6}}>Clears all bets and resets both stacks to $100,000. Permanent.</div>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#C0392B",letterSpacing:3,marginBottom:8}}>ARCHIVE & RESET SEASON?</div>
+            <div style={{fontSize:12,color:T.textMuted,marginBottom:20,lineHeight:1.6}}>Current season will be saved to Archives, then all bets reset and stacks returned to $100,000. Permanent.</div>
             <div style={{display:"flex",gap:10,justifyContent:"center"}}>
-              <button style={{background:"#C0392B",border:"none",color:"white",fontFamily:"'Bebas Neue',cursive",fontSize:16,letterSpacing:2,padding:"10px 22px",borderRadius:2,cursor:"pointer"}} onClick={resetSeason}>RESET</button>
+              <button style={{background:"#C0392B",border:"none",color:"white",fontFamily:"'Bebas Neue',cursive",fontSize:16,letterSpacing:2,padding:"10px 22px",borderRadius:2,cursor:"pointer"}} onClick={resetSeason}>ARCHIVE & RESET</button>
               <button className="gh" style={{padding:"10px 20px",borderRadius:2,fontSize:13}} onClick={()=>setShowResetConfirm(false)}>CANCEL</button>
             </div>
           </div>
